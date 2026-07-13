@@ -87,11 +87,9 @@
   <!-- ── GAME SCREEN ─────────────────────────────────────── -->
   <div id="game-screen" class="screen">
     <div class="top-bar">
-      <div class="progress-wrap">
-        <div class="progress-label" id="progress-label">0 / 0</div>
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" id="progress-fill"></div>
-        </div>
+      <div class="progress-label top-label" id="progress-label">0 / 0</div>
+      <div class="progress-bar-bg top-progress-bar">
+        <div class="progress-bar-fill" id="progress-fill"></div>
       </div>
       <div class="counters">
         <span class="cnt-good" id="cnt-good">✓ 0</span>
@@ -108,29 +106,29 @@
       <button class="action-btn btn-good" id="btn-good" title="Good (→)">✓</button>
     </div>
 
-    <div class="hint">← Bad &nbsp;·&nbsp; → Good &nbsp;·&nbsp; ↓ Skip &nbsp;·&nbsp; Drag the card</div>
+    <div class="hint">← Bad &nbsp;·&nbsp; → Good &nbsp;·&nbsp; ↓ Skip &nbsp;·&nbsp; Drag the card &nbsp;·&nbsp; Tap image to zoom</div>
   </div>
 
   <!-- ── RATING MODE SCREEN ─────────────────────────────── -->
   <div id="rating-screen" class="screen">
     <div class="top-bar">
-      <div class="progress-wrap">
-        <div class="progress-label" id="rating-progress-label">Image 1 / 1</div>
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" id="rating-progress-fill"></div>
-        </div>
+      <div class="progress-label top-label" id="rating-progress-label">Image 1 / 1</div>
+      <div class="progress-bar-bg top-progress-bar">
+        <div class="progress-bar-fill" id="rating-progress-fill"></div>
       </div>
     </div>
 
     <div class="rating-frame">
       <img id="rating-image" src="" alt="rating question image" />
-      <div class="likert-legend" id="likert-legend">
-        Likert scale: 1 = Strongly disagree, 2 = Disagree, 3 = Neutral, 4 = Agree, 5 = Strongly agree
+      <div class="rating-content">
+        <div class="likert-legend" id="likert-legend">
+          Likert scale: 1 = Strongly disagree, 2 = Disagree, 3 = Neutral, 4 = Agree, 5 = Strongly agree
+        </div>
+        <div class="likert-list" id="likert-list"></div>
+        <textarea id="subjective-input" placeholder="Describe this image in your own words..."></textarea>
+        <div class="error-msg" id="rating-error"></div>
+        <button class="btn-primary" id="rating-next-btn" disabled>Submit answer →</button>
       </div>
-      <div class="likert-list" id="likert-list"></div>
-      <textarea id="subjective-input" placeholder="Describe this image in your own words..."></textarea>
-      <div class="error-msg" id="rating-error"></div>
-      <button class="btn-primary" id="rating-next-btn" disabled>Submit answer →</button>
     </div>
   </div>
 
@@ -156,6 +154,21 @@
     </div>
     <div class="output-path" id="done-path"></div>
     <button class="btn-primary" id="restart-btn">Sort Another Folder</button>
+  </div>
+
+  <!-- ── IMAGE LIGHTBOX ─────────────────────────────────── -->
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Image zoom view">
+    <div class="lightbox-backdrop"></div>
+    <div class="lightbox-inner">
+      <img id="lightbox-img" src="" alt="full view" draggable="false" />
+    </div>
+    <div class="lightbox-controls">
+      <button class="lightbox-btn" id="lb-zoom-out" title="Zoom out">−</button>
+      <span class="lightbox-zoom-label" id="lb-zoom-label">100%</span>
+      <button class="lightbox-btn" id="lb-zoom-in" title="Zoom in">+</button>
+      <button class="lightbox-btn" id="lb-zoom-reset" title="Reset zoom">↺</button>
+      <button class="lightbox-btn lightbox-close" id="lb-close" title="Close (Esc)">✕</button>
+    </div>
   </div>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>
