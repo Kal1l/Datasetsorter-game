@@ -3,9 +3,9 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
 
-from modes.classic_mode import classic_bp, session_info_for_folder
+from modes.classic_mode import classic_bp, session_info_for_folder as classic_session_info_for_folder
 from modes.common import IMAGE_EXTENSIONS, count_images
-from modes.rating_mode import rating_bp
+from modes.rating_mode import rating_bp, session_info_for_folder as rating_session_info_for_folder
 
 app = Flask(__name__)
 app.register_blueprint(classic_bp)
@@ -41,12 +41,14 @@ def scan():
         and Path(f).suffix.lower() in IMAGE_EXTENSIONS
     )
 
-    session_info = session_info_for_folder(folder)
+    session_info = classic_session_info_for_folder(folder)
+    rating_session_info = rating_session_info_for_folder(folder)
 
     return jsonify({
         'subfolders': subfolders,
         'direct_images': direct,
         'session': session_info,
+        'rating_session': rating_session_info,
     })
 if __name__ == '__main__':
     print("Dataset Game running at http://localhost:5000")

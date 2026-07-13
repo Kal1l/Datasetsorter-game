@@ -4,7 +4,7 @@ import shutil
 
 from flask import Blueprint, jsonify, request, send_file
 
-from .common import collect_images
+from .common import collect_images, selected_images
 
 SESSION_FILE = '.dataset_game_session.json'
 
@@ -131,13 +131,7 @@ def start():
     if not folder or not os.path.isdir(folder):
         return jsonify({'error': 'Invalid or non-existent folder path.'}), 400
 
-    if selected_paths:
-        images = []
-        for path in selected_paths:
-            if os.path.isdir(path):
-                images.extend(collect_images(path))
-    else:
-        images = collect_images(folder)
+    images = selected_images(folder, selected_paths)
 
     if not images:
         return jsonify({'error': 'No images found in the specified folder.'}), 400

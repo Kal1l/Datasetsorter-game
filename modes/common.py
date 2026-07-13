@@ -4,6 +4,25 @@ from pathlib import Path
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif'}
 
 
+def _is_within_base(path, base_folder):
+    try:
+        resolved_path = Path(path).resolve()
+        resolved_base = Path(base_folder).resolve()
+        return os.path.commonpath([resolved_path, resolved_base]) == str(resolved_base)
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
+def selected_images(folder, selected_paths=None):
+    if selected_paths:
+        images = []
+        for path in selected_paths:
+            if os.path.isdir(path) and _is_within_base(path, folder):
+                images.extend(collect_images(path))
+        return images
+    return collect_images(folder)
+
+
 def collect_images(folder):
     images = []
     skip_dirs = {'good', 'bad'}

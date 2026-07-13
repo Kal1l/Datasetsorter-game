@@ -1,12 +1,14 @@
 import csv
+import json
 import os
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request, send_file
 
-from .common import collect_images
+from .common import collect_images, selected_images
 
 RATING_RESULTS_FILE = 'rating_results.csv'
+SESSION_FILE = '.dataset_game_rating_session.json'
 LIKERT_QUESTIONS = [
     'do_you_like_this_image',
     'does_this_image_look_ai_generated',
@@ -26,14 +28,76 @@ state = {
 }
 
 
+def session_path(folder):
+    return os.path.join(folder, SESSION_FILE)
+
+
+def save_session():
+    if not state['base_folder']:
+        return
+
+    data = {
+        'folder': state['base_folder'],
+        'selected_paths': state['selected_paths'],
+        'images': state['images'],
+        'current_index': state['current_index'],
+        'answers': state['answers'],
+    }
+    try:
+        with open(session_path(state['base_folder']), 'w', encoding='utf-8') as handle:
+            json.dump(data, handle)
+    except OSError:
+        pass
+
+
+def load_session(folder):
+    path = session_path(folder)
+    if not os.path.isfile(path):
+        return None
+
+    try:
+        with open(path, 'r', encoding='utf-8') as handle:
+            data = json.load(handle)
+        if 'images' not in data or 'current_index' not in data:
+            return None
+        return data
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def delete_session(folder):
+    try:
+        os.remove(session_path(folder))
+    except OSError:
+        pass
+
+
+def apply_state(data):
+    folder = data['folder']
+    state['images'] = data['images']
+    state['current_index'] = data['current_index']
+    state['base_folder'] = folder
+    state['selected_paths'] = data.get('selected_paths', [])
+    state['answers'] = data.get('answers', [])
+
+
+def session_info_for_folder(folder):
+    session = load_session(folder)
+    if not session:
+        return None
+
+    total = len(session['images'])
+    done = session['current_index']
+    return {
+        'current_index': done,
+        'total': total,
+        'answered': len(session.get('answers', [])),
+        'selected_paths': session.get('selected_paths', []),
+    }
+
+
 def _selected_images(folder, selected_paths):
-    if selected_paths:
-        images = []
-        for path in selected_paths:
-            if os.path.isdir(path):
-                images.extend(collect_images(path))
-        return images
-    return collect_images(folder)
+    return selected_images(folder, selected_paths)
 
 
 def _validate_responses(responses):
@@ -74,6 +138,19 @@ def _write_results_csv():
     return csv_path
 
 
+def _session_average():
+    if not state['answers']:
+        return '0.0'
+
+    total_points = 0
+    total_values = len(state['answers']) * len(LIKERT_QUESTIONS)
+    for answer in state['answers']:
+        for question in LIKERT_QUESTIONS:
+            total_points += answer[question]
+
+    return f'{(total_points / total_values):.1f}'
+
+
 @rating_bp.route('/api/rating/start', methods=['POST'])
 def start():
     data = request.json or {}
@@ -83,17 +160,29 @@ def start():
     if not folder or not os.path.isdir(folder):
         return jsonify({'error': 'Invalid or non-existent folder path.'}), 400
 
-    images = _selected_images(folder, selected_paths)
-    if not images:
+    session = load_session(folder)
+    if session:
+        apply_state(session)
+    else:
+        images = _selected_images(folder, selected_paths)
+        if not images:
+            return jsonify({'error': 'No images found in the selected folders.'}), 400
+
+        state['images'] = images
+        state['current_index'] = 0
+        state['base_folder'] = folder
+        state['selected_paths'] = selected_paths or []
+        state['answers'] = []
+        save_session()
+
+    if not state['images']:
         return jsonify({'error': 'No images found in the selected folders.'}), 400
 
-    state['images'] = images
-    state['current_index'] = 0
-    state['base_folder'] = folder
-    state['selected_paths'] = selected_paths or []
-    state['answers'] = []
-
-    return jsonify({'total': len(images), 'current': 0})
+    return jsonify({
+        'total': len(state['images']),
+        'current': state['current_index'],
+        'answered': len(state['answers']),
+    })
 
 
 @rating_bp.route('/api/rating/image/<int:idx>')
@@ -143,10 +232,15 @@ def submit():
     state['current_index'] = idx + 1
     done = state['current_index'] >= len(images)
 
+    save_session()
+
     csv_path = None
+    average = None
     if done:
         try:
             csv_path = _write_results_csv()
+            average = _session_average()
+            delete_session(state['base_folder'])
         except OSError:
             return jsonify({'error': 'Could not write CSV results.'}), 500
 
@@ -156,4 +250,14 @@ def submit():
         'total': len(images),
         'answered': len(state['answers']),
         'csv_path': csv_path,
+        'average': average,
     })
+
+
+@rating_bp.route('/api/rating/discard_session', methods=['POST'])
+def discard_session():
+    data = request.json or {}
+    folder = data.get('folder', '').strip()
+    if folder:
+        delete_session(folder)
+    return jsonify({'ok': True})

@@ -4,1446 +4,160 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dataset Game</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --good: #22c55e;
-      --bad: #ef4444;
-      --skip: #f59e0b;
-      --bg: #0f172a;
-      --surface: #1e293b;
-      --border: #334155;
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --accent: #3b82f6;
-    }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
-
-    /* ── SHARED ───────────────────────────────────── */
-    .screen {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .screen.active { display: flex; }
-
-    .btn-primary {
-      padding: 14px 40px;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
-      border: none;
-      border-radius: 10px;
-      color: white;
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: opacity 0.2s, transform 0.1s;
-      width: 100%;
-    }
-    .btn-primary:hover  { opacity: 0.9; }
-    .btn-primary:active { transform: scale(0.98); }
-    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-
-    .error-msg {
-      color: var(--bad);
-      font-size: 0.9rem;
-      text-align: center;
-      min-height: 20px;
-    }
-
-    /* ── SETUP SCREEN ─────────────────────────────── */
-    #setup-screen {
-      gap: 24px;
-      padding: 40px;
-      max-width: 520px;
-      width: 100%;
-    }
-
-    #setup-screen h1 {
-      font-size: 2rem;
-      font-weight: 800;
-      text-align: center;
-      background: linear-gradient(135deg, var(--good), #3b82f6);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    #setup-screen p {
-      color: var(--muted);
-      text-align: center;
-      line-height: 1.6;
-    }
-
-    .mode-grid {
-      width: 100%;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .mode-card {
-      background: var(--surface);
-      border: 2px solid var(--border);
-      border-radius: 12px;
-      padding: 14px 12px;
-      text-align: left;
-      cursor: pointer;
-      transition: border-color 0.2s, transform 0.1s;
-    }
-
-    .mode-card:hover {
-      border-color: var(--accent);
-    }
-
-    .mode-card.active {
-      border-color: var(--accent);
-      background: rgba(59,130,246,0.12);
-    }
-
-    .mode-card h3 {
-      font-size: 0.95rem;
-      margin-bottom: 4px;
-    }
-
-    .mode-card p {
-      text-align: left !important;
-      font-size: 0.78rem;
-      line-height: 1.4;
-      color: var(--muted);
-    }
-
-    .input-group {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .input-group label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .input-group input {
-      width: 100%;
-      padding: 12px 16px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--text);
-      font-size: 1rem;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    .input-group input:focus { border-color: var(--accent); }
-
-    /* ── RESUME SCREEN ───────────────────────────── */
-    #resume-screen {
-      gap: 28px;
-      padding: 40px;
-      max-width: 480px;
-      width: 100%;
-      text-align: center;
-    }
-
-    .resume-icon { font-size: 3rem; line-height: 1; }
-
-    #resume-screen h2 { font-size: 1.6rem; font-weight: 800; }
-    #resume-screen p  { color: var(--muted); line-height: 1.6; }
-
-    .resume-stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      width: 100%;
-    }
-
-    .resume-stat {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      align-items: center;
-    }
-
-    .resume-stat .num { font-size: 1.5rem; font-weight: 800; }
-    .resume-stat .lbl { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-    .resume-stat.good .num { color: var(--good); }
-    .resume-stat.bad  .num { color: var(--bad); }
-    .resume-stat.skip .num { color: var(--skip); }
-
-    .resume-progress {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .resume-progress-label { font-size: 0.85rem; color: var(--muted); }
-
-    .resume-actions {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .btn-secondary {
-      padding: 12px 40px;
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--muted);
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: border-color 0.2s, color 0.2s;
-      width: 100%;
-    }
-    .btn-secondary:hover { border-color: var(--text); color: var(--text); }
-
-    /* ── SELECT SCREEN ────────────────────────────── */
-    #select-screen {
-      gap: 20px;
-      padding: 32px 24px;
-      max-width: 680px;
-      width: 100%;
-      max-height: 100vh;
-    }
-
-    .select-header { text-align: center; }
-    .select-header h2 { font-size: 1.5rem; font-weight: 800; }
-    .select-header p  { color: var(--muted); font-size: 0.85rem; margin-top: 4px; word-break: break-all; }
-
-    .select-toolbar {
-      display: flex;
-      gap: 10px;
-      width: 100%;
-      justify-content: flex-end;
-    }
-
-    .btn-sm {
-      padding: 6px 14px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--muted);
-      font-size: 0.8rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: color 0.15s, border-color 0.15s;
-    }
-    .btn-sm:hover { color: var(--text); border-color: var(--accent); }
-
-    .folder-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 12px;
-      width: 100%;
-      overflow-y: auto;
-      max-height: calc(100vh - 280px);
-      padding-right: 4px;
-    }
-
-    /* Custom scrollbar */
-    .folder-grid::-webkit-scrollbar { width: 6px; }
-    .folder-grid::-webkit-scrollbar-track { background: transparent; }
-    .folder-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
-
-    .folder-card {
-      background: var(--surface);
-      border: 2px solid var(--border);
-      border-radius: 14px;
-      padding: 18px 14px;
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s, transform 0.1s;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      text-align: center;
-      user-select: none;
-    }
-
-    .folder-card:hover { border-color: var(--accent); }
-    .folder-card:active { transform: scale(0.97); }
-
-    .folder-card.selected {
-      border-color: var(--accent);
-      background: rgba(59,130,246,0.12);
-    }
-
-    .folder-card.selected .folder-icon { filter: none; opacity: 1; }
-
-    .folder-icon {
-      font-size: 2.4rem;
-      line-height: 1;
-      opacity: 0.6;
-      transition: opacity 0.15s;
-    }
-
-    .folder-card.selected .folder-icon { opacity: 1; }
-
-    .folder-name {
-      font-size: 0.85rem;
-      font-weight: 700;
-      word-break: break-word;
-      line-height: 1.3;
-    }
-
-    .folder-count {
-      font-size: 0.75rem;
-      color: var(--muted);
-      font-weight: 500;
-    }
-
-    .folder-check {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      border: 2px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-      font-weight: 800;
-      transition: background 0.15s, border-color 0.15s;
-      flex-shrink: 0;
-    }
-
-    .folder-card.selected .folder-check {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: white;
-    }
-
-    .select-footer {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    #start-selected-btn {
-      width: 100%;
-    }
-
-    /* ── GAME SCREEN ──────────────────────────────── */
-    #game-screen {
-      width: 100%;
-      height: 100vh;
-      padding: 20px;
-      gap: 16px;
-    }
-
-    .top-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-      max-width: 600px;
-    }
-
-    .progress-wrap {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .progress-label {
-      font-size: 0.8rem;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    .progress-bar-bg {
-      width: 100%;
-      height: 6px;
-      background: var(--border);
-      border-radius: 99px;
-      overflow: hidden;
-    }
-
-    .progress-bar-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #3b82f6, var(--good));
-      border-radius: 99px;
-      transition: width 0.3s ease;
-      width: 0%;
-    }
-
-    .counters {
-      display: flex;
-      gap: 16px;
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
-
-    .cnt-good { color: var(--good); }
-    .cnt-bad  { color: var(--bad); }
-    .cnt-skip { color: var(--skip); }
-
-    /* ── CARD AREA ────────────────────────────────── */
-    .card-area {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .card {
-      position: absolute;
-      width: min(480px, 90vw);
-      max-height: calc(100vh - 220px);
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      overflow: hidden;
-      cursor: grab;
-      user-select: none;
-      touch-action: none;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-    }
-
-    .card:active { cursor: grabbing; }
-
-    .card img {
-      width: 100%;
-      max-height: calc(100vh - 260px);
-      object-fit: contain;
-      display: block;
-      background: #000;
-      pointer-events: none;
-    }
-
-    .card-footer {
-      padding: 10px 16px;
-      font-size: 0.75rem;
-      color: var(--muted);
-      text-align: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .stamp {
-      position: absolute;
-      top: 20px;
-      padding: 8px 18px;
-      border-radius: 8px;
-      font-size: 1.5rem;
-      font-weight: 900;
-      letter-spacing: 0.1em;
-      opacity: 0;
-      pointer-events: none;
-      border: 4px solid;
-    }
-
-    .stamp-good { right: 20px; color: var(--good); border-color: var(--good); transform: rotate(15deg); }
-    .stamp-bad  { left: 20px;  color: var(--bad);  border-color: var(--bad);  transform: rotate(-15deg); }
-
-    /* ── ACTION BUTTONS ───────────────────────────── */
-    .action-buttons {
-      display: flex;
-      gap: 24px;
-      align-items: center;
-      padding-bottom: 8px;
-    }
-
-    .action-btn {
-      border: none;
-      border-radius: 50%;
-      width: 64px;
-      height: 64px;
-      font-size: 1.5rem;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: transform 0.15s, box-shadow 0.15s;
-      font-weight: bold;
-    }
-
-    .action-btn:hover  { transform: scale(1.12); }
-    .action-btn:active { transform: scale(0.95); }
-
-    .btn-bad  { background: var(--bad);  color: white; box-shadow: 0 4px 16px rgba(239,68,68,0.4); }
-    .btn-skip { background: var(--skip); color: white; box-shadow: 0 4px 16px rgba(245,158,11,0.3); width: 48px; height: 48px; font-size: 1.1rem; }
-    .btn-good { background: var(--good); color: white; box-shadow: 0 4px 16px rgba(34,197,94,0.4); }
-
-    .hint {
-      font-size: 0.72rem;
-      color: var(--muted);
-      text-align: center;
-      padding-bottom: 4px;
-    }
-
-    /* ── DONE SCREEN ──────────────────────────────── */
-    #done-screen {
-      gap: 24px;
-      padding: 40px;
-      max-width: 480px;
-      width: 100%;
-    }
-
-    #done-screen h2 { font-size: 2rem; font-weight: 800; }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      width: 100%;
-    }
-
-    .summary-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 20px 12px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .summary-card .num { font-size: 2rem; font-weight: 800; }
-    .summary-card .lbl { font-size: 0.8rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-    .summary-card.good .num { color: var(--good); }
-    .summary-card.bad  .num { color: var(--bad); }
-    .summary-card.skip .num { color: var(--skip); }
-
-    .output-path {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 16px;
-      font-size: 0.85rem;
-      color: var(--muted);
-      width: 100%;
-      word-break: break-all;
-      text-align: center;
-    }
-
-    .output-path strong { color: var(--text); }
-
-    /* ── RATING MODE ─────────────────────────────── */
-    #rating-screen, #rating-done-screen {
-      gap: 18px;
-      padding: 24px;
-      width: 100%;
-      max-width: 760px;
-    }
-
-    .rating-frame {
-      width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      align-items: center;
-      max-height: calc(100vh - 140px);
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-
-    .rating-frame::-webkit-scrollbar { width: 8px; }
-    .rating-frame::-webkit-scrollbar-track { background: transparent; }
-    .rating-frame::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
-
-    .rating-frame img {
-      width: 100%;
-      max-height: 56vh;
-      object-fit: contain;
-      border-radius: 10px;
-      background: #000;
-    }
-
-    .likert-legend {
-      color: var(--muted);
-      font-size: 0.82rem;
-      text-align: center;
-      line-height: 1.5;
-      width: 100%;
-    }
-
-    .likert-list {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .likert-item {
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .likert-item h4 {
-      font-size: 0.9rem;
-      font-weight: 700;
-      line-height: 1.4;
-    }
-
-    .likert-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .choice-btn {
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-    }
-
-    .choice-btn.active {
-      border-color: var(--accent);
-      background: rgba(59,130,246,0.2);
-    }
-
-    .likert-btn {
-      min-width: 48px;
-      text-align: center;
-    }
-
-    #subjective-input {
-      width: 100%;
-      min-height: 120px;
-      resize: vertical;
-      padding: 12px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      font-family: inherit;
-      outline: none;
-    }
-
-    #subjective-input:focus {
-      border-color: var(--accent);
-    }
-
-    @media (max-width: 720px) {
-      .mode-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
+  <!-- ── SETUP SCREEN ────────────────────────────────────── -->
+  <div id="setup-screen" class="screen active">
+    <h1>Dataset Game</h1>
+    <p>Point to a folder full of images.<br />
+       Swipe <strong style="color:var(--good)">right</strong> to keep &nbsp;·&nbsp;
+       Swipe <strong style="color:var(--bad)">left</strong> to discard.</p>
 
-<!-- ── SETUP SCREEN ────────────────────────────────────── -->
-<div id="setup-screen" class="screen active">
-  <h1>Dataset Game</h1>
-  <p>Point to a folder full of images.<br/>
-     Swipe <strong style="color:var(--good)">right</strong> to keep &nbsp;·&nbsp;
-     Swipe <strong style="color:var(--bad)">left</strong> to discard.</p>
-
-  <div class="input-group">
-    <label>Game Mode</label>
-    <div class="mode-grid" id="mode-grid">
-      <button class="mode-card active" type="button" data-mode="classic">
-        <h3>Classic Sort</h3>
-        <p>Sort all selected images into good, bad, or skip.</p>
-      </button>
-      <button class="mode-card" type="button" data-mode="rating">
-        <h3>Rating Survey</h3>
-        <p>For each image, answer 5 Likert-scale questions (1-5) and 1 descriptive question.</p>
-      </button>
-    </div>
-  </div>
-
-  <div class="input-group">
-    <label>Dataset Folder Path</label>
-    <input id="folder-input" type="text"
-           placeholder="C:\Users\you\my-dataset"
-           autocomplete="off" spellcheck="false" />
-  </div>
-
-  <div class="error-msg" id="setup-error"></div>
-  <button class="btn-primary" id="scan-btn">Next →</button>
-</div>
-
-<!-- ── RESUME SCREEN ────────────────────────────────────── -->
-<div id="resume-screen" class="screen">
-  <div class="resume-icon">💾</div>
-  <h2>Resume session?</h2>
-  <p id="resume-desc"></p>
-
-  <div class="resume-progress">
-    <div class="progress-bar-bg">
-      <div class="progress-bar-fill" id="resume-fill"></div>
-    </div>
-    <div class="resume-progress-label" id="resume-progress-label"></div>
-  </div>
-
-  <div class="resume-stats">
-    <div class="resume-stat good"><span class="num" id="resume-good">0</span><span class="lbl">Good</span></div>
-    <div class="resume-stat bad"> <span class="num" id="resume-bad">0</span> <span class="lbl">Bad</span></div>
-    <div class="resume-stat skip"><span class="num" id="resume-skip">0</span><span class="lbl">Skipped</span></div>
-  </div>
-
-  <div class="resume-actions">
-    <button class="btn-primary" id="btn-resume">▶ Continue where I left off</button>
-    <button class="btn-secondary" id="btn-start-fresh">Start fresh (lose progress)</button>
-  </div>
-</div>
-
-<!-- ── SELECT SCREEN ───────────────────────────────────── -->
-<div id="select-screen" class="screen">
-  <div class="select-header">
-    <h2>Select folders to sort</h2>
-    <p id="select-folder-label"></p>
-  </div>
-
-  <div class="select-toolbar">
-    <button class="btn-sm" id="sel-all-btn">Select all</button>
-    <button class="btn-sm" id="sel-none-btn">None</button>
-  </div>
-
-  <div class="folder-grid" id="folder-grid"></div>
-
-  <div class="select-footer">
-    <div class="error-msg" id="select-error"></div>
-    <button class="btn-primary" id="start-selected-btn">Start →</button>
-  </div>
-</div>
-
-<!-- ── GAME SCREEN ─────────────────────────────────────── -->
-<div id="game-screen" class="screen">
-  <div class="top-bar">
-    <div class="progress-wrap">
-      <div class="progress-label" id="progress-label">0 / 0</div>
-      <div class="progress-bar-bg">
-        <div class="progress-bar-fill" id="progress-fill"></div>
+    <div class="input-group">
+      <label>Game Mode</label>
+      <div class="mode-grid" id="mode-grid">
+        <button class="mode-card active" type="button" data-mode="classic">
+          <h3>Classic Sort</h3>
+          <p>Sort all selected images into good, bad, or skip.</p>
+        </button>
+        <button class="mode-card" type="button" data-mode="rating">
+          <h3>Rating Survey</h3>
+          <p>For each image, answer 5 Likert-scale questions (1-5) and 1 descriptive question.</p>
+        </button>
       </div>
     </div>
-    <div class="counters">
-      <span class="cnt-good" id="cnt-good">✓ 0</span>
-      <span class="cnt-bad"  id="cnt-bad">✗ 0</span>
-      <span class="cnt-skip" id="cnt-skip">– 0</span>
+
+    <div class="input-group">
+      <label>Dataset Folder Path</label>
+      <input id="folder-input" type="text"
+             placeholder="C:\Users\you\my-dataset"
+             autocomplete="off" spellcheck="false" />
+    </div>
+
+    <div class="error-msg" id="setup-error"></div>
+    <button class="btn-primary" id="scan-btn">Next →</button>
+  </div>
+
+  <!-- ── RESUME SCREEN ────────────────────────────────────── -->
+  <div id="resume-screen" class="screen">
+    <div class="resume-icon">💾</div>
+    <h2>Resume session?</h2>
+    <p id="resume-desc"></p>
+
+    <div class="resume-progress">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="resume-fill"></div>
+      </div>
+      <div class="resume-progress-label" id="resume-progress-label"></div>
+    </div>
+
+    <div class="resume-stats">
+      <div class="resume-stat good"><span class="num" id="resume-good">0</span><span class="lbl">Good</span></div>
+      <div class="resume-stat bad"><span class="num" id="resume-bad">0</span><span class="lbl">Bad</span></div>
+      <div class="resume-stat skip"><span class="num" id="resume-skip">0</span><span class="lbl">Skipped</span></div>
+    </div>
+
+    <div class="resume-actions">
+      <button class="btn-primary" id="btn-resume">▶ Continue where I left off</button>
+      <button class="btn-secondary" id="btn-start-fresh">Start fresh (lose progress)</button>
     </div>
   </div>
 
-  <div class="card-area" id="card-area"></div>
+  <!-- ── SELECT SCREEN ───────────────────────────────────── -->
+  <div id="select-screen" class="screen">
+    <div class="select-header">
+      <h2>Select folders to sort</h2>
+      <p id="select-folder-label"></p>
+    </div>
 
-  <div class="action-buttons">
-    <button class="action-btn btn-bad"  id="btn-bad"  title="Bad (←)">✗</button>
-    <button class="action-btn btn-skip" id="btn-skip" title="Skip (↓)">–</button>
-    <button class="action-btn btn-good" id="btn-good" title="Good (→)">✓</button>
+    <div class="select-toolbar">
+      <button class="btn-sm" id="sel-all-btn">Select all</button>
+      <button class="btn-sm" id="sel-none-btn">None</button>
+    </div>
+
+    <div class="folder-grid" id="folder-grid"></div>
+
+    <div class="select-footer">
+      <div class="error-msg" id="select-error"></div>
+      <button class="btn-primary" id="start-selected-btn">Start →</button>
+    </div>
   </div>
 
-  <div class="hint">← Bad &nbsp;·&nbsp; → Good &nbsp;·&nbsp; ↓ Skip &nbsp;·&nbsp; Drag the card</div>
-</div>
-
-<!-- ── RATING MODE SCREEN ─────────────────────────────── -->
-<div id="rating-screen" class="screen">
-  <div class="top-bar">
-    <div class="progress-wrap">
-      <div class="progress-label" id="rating-progress-label">Image 1 / 1</div>
-      <div class="progress-bar-bg">
-        <div class="progress-bar-fill" id="rating-progress-fill"></div>
+  <!-- ── GAME SCREEN ─────────────────────────────────────── -->
+  <div id="game-screen" class="screen">
+    <div class="top-bar">
+      <div class="progress-wrap">
+        <div class="progress-label" id="progress-label">0 / 0</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+      </div>
+      <div class="counters">
+        <span class="cnt-good" id="cnt-good">✓ 0</span>
+        <span class="cnt-bad" id="cnt-bad">✗ 0</span>
+        <span class="cnt-skip" id="cnt-skip">– 0</span>
       </div>
     </div>
-  </div>
 
-  <div class="rating-frame">
-    <img id="rating-image" src="" alt="rating question image" />
-    <div class="likert-legend" id="likert-legend">
-      Likert scale: 1 = Strongly disagree, 2 = Disagree, 3 = Neutral, 4 = Agree, 5 = Strongly agree
+    <div class="card-area" id="card-area"></div>
+
+    <div class="action-buttons">
+      <button class="action-btn btn-bad" id="btn-bad" title="Bad (←)">✗</button>
+      <button class="action-btn btn-skip" id="btn-skip" title="Skip (↓)">–</button>
+      <button class="action-btn btn-good" id="btn-good" title="Good (→)">✓</button>
     </div>
-    <div class="likert-list" id="likert-list"></div>
-    <textarea id="subjective-input" placeholder="Describe this image in your own words..."></textarea>
-    <div class="error-msg" id="rating-error"></div>
-    <button class="btn-primary" id="rating-next-btn" disabled>Submit answer →</button>
+
+    <div class="hint">← Bad &nbsp;·&nbsp; → Good &nbsp;·&nbsp; ↓ Skip &nbsp;·&nbsp; Drag the card</div>
   </div>
-</div>
 
-<!-- ── RATING DONE ─────────────────────────────────────── -->
-<div id="rating-done-screen" class="screen">
-  <h2>✅ Rating mode complete</h2>
-  <div class="summary-grid">
-    <div class="summary-card good"><span class="num" id="rating-answered">0</span><span class="lbl">Images</span></div>
-    <div class="summary-card"><span class="num" id="rating-average">0.0</span><span class="lbl">Avg stars</span></div>
-    <div class="summary-card"><span class="num" id="rating-mode-total">0</span><span class="lbl">Total</span></div>
+  <!-- ── RATING MODE SCREEN ─────────────────────────────── -->
+  <div id="rating-screen" class="screen">
+    <div class="top-bar">
+      <div class="progress-wrap">
+        <div class="progress-label" id="rating-progress-label">Image 1 / 1</div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="rating-progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rating-frame">
+      <img id="rating-image" src="" alt="rating question image" />
+      <div class="likert-legend" id="likert-legend">
+        Likert scale: 1 = Strongly disagree, 2 = Disagree, 3 = Neutral, 4 = Agree, 5 = Strongly agree
+      </div>
+      <div class="likert-list" id="likert-list"></div>
+      <textarea id="subjective-input" placeholder="Describe this image in your own words..."></textarea>
+      <div class="error-msg" id="rating-error"></div>
+      <button class="btn-primary" id="rating-next-btn" disabled>Submit answer →</button>
+    </div>
   </div>
-  <div class="output-path" id="rating-csv-path"></div>
-  <button class="btn-primary" id="rating-restart-btn">Run Another Session</button>
-</div>
 
-<!-- ── DONE SCREEN ─────────────────────────────────────── -->
-<div id="done-screen" class="screen">
-  <h2>🎉 All done!</h2>
-  <div class="summary-grid">
-    <div class="summary-card good"><span class="num" id="done-good">0</span><span class="lbl">Good</span></div>
-    <div class="summary-card bad"> <span class="num" id="done-bad">0</span> <span class="lbl">Bad</span></div>
-    <div class="summary-card skip"><span class="num" id="done-skip">0</span><span class="lbl">Skipped</span></div>
+  <!-- ── RATING DONE ─────────────────────────────────────── -->
+  <div id="rating-done-screen" class="screen">
+    <h2>✅ Rating mode complete</h2>
+    <div class="summary-grid">
+      <div class="summary-card good"><span class="num" id="rating-answered">0</span><span class="lbl">Images</span></div>
+      <div class="summary-card"><span class="num" id="rating-average">0.0</span><span class="lbl">Avg stars</span></div>
+      <div class="summary-card"><span class="num" id="rating-mode-total">0</span><span class="lbl">Total</span></div>
+    </div>
+    <div class="output-path" id="rating-csv-path"></div>
+    <button class="btn-primary" id="rating-restart-btn">Run Another Session</button>
   </div>
-  <div class="output-path" id="done-path"></div>
-  <button class="btn-primary" id="restart-btn">Sort Another Folder</button>
-</div>
 
-<script>
-  // ── Shared state ─────────────────────────────────────────
-  let selectedMode = 'classic';
-  let folderPath = '';
-  let subfolderData = [];
-  let selectedPaths = new Set();
-  let pendingSessionInfo = null;
-
-  // Classic mode state
-  let total = 0, currentIndex = 0;
-  let goodCount = 0, badCount = 0, skipCount = 0;
-  let isAnimating = false;
-
-  // Rating mode state
-  let ratingTotal = 0;
-  let ratingIndex = 0;
-  let ratingResponses = {};
-  let ratingSubjective = '';
-  let ratingAnswers = [];
-
-  const ratingQuestionConfig = [
-    { key: 'do_you_like_this_image', label: '1. Do you like this image?' },
-    { key: 'does_this_image_look_ai_generated', label: '2. Do you think this image looks AI generated?' },
-    { key: 'is_the_image_visually_clear', label: '3. Is this image visually clear?' },
-    { key: 'is_the_content_coherent', label: '4. Is the content coherent?' },
-    { key: 'would_you_use_this_image_in_a_dataset', label: '5. Would you use this image in a dataset?' },
-  ];
-
-  // ── Screen helpers ───────────────────────────────────────
-  function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-  }
-
-  // ── Mode selector ────────────────────────────────────────
-  document.querySelectorAll('#mode-grid .mode-card').forEach(btn => {
-    btn.addEventListener('click', () => {
-      selectedMode = btn.dataset.mode;
-      document.querySelectorAll('#mode-grid .mode-card').forEach(el => el.classList.remove('active'));
-      btn.classList.add('active');
-    });
-  });
-
-  // ── Setup / scan ─────────────────────────────────────────
-  document.getElementById('scan-btn').addEventListener('click', doScan);
-  document.getElementById('folder-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') doScan();
-  });
-
-  async function doScan() {
-    const folder = document.getElementById('folder-input').value.trim();
-    document.getElementById('setup-error').textContent = '';
-
-    if (!folder) {
-      document.getElementById('setup-error').textContent = 'Please enter a folder path.';
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({folder}),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        document.getElementById('setup-error').textContent = data.error || 'Error scanning folder.';
-        return;
-      }
-
-      folderPath = folder;
-      pendingSessionInfo = selectedMode === 'classic' ? (data.session || null) : null;
-
-      if (pendingSessionInfo) {
-        showResumeScreen(pendingSessionInfo);
-      } else if (data.subfolders && data.subfolders.length > 0) {
-        subfolderData = data.subfolders;
-        buildSelectScreen(data.subfolders);
-        showScreen('select-screen');
-      } else {
-        await startSelectedMode(folder, null);
-      }
-    } catch (err) {
-      document.getElementById('setup-error').textContent = 'Could not connect to server.';
-    }
-  }
-
-  async function startSelectedMode(folder, selectedPathsList) {
-    if (selectedMode === 'rating') {
-      await startRatingGame(folder, selectedPathsList);
-      return;
-    }
-    await startClassicGame(folder, selectedPathsList);
-  }
-
-  // ── Resume (classic only) ────────────────────────────────
-  function showResumeScreen(info) {
-    const pct = info.total > 0 ? Math.round((info.current_index / info.total) * 100) : 0;
-    document.getElementById('resume-desc').textContent =
-      `You were at image ${info.current_index} of ${info.total} (${pct}% done).`;
-    document.getElementById('resume-fill').style.width = pct + '%';
-    document.getElementById('resume-progress-label').textContent =
-      `${info.current_index} / ${info.total} images sorted`;
-    document.getElementById('resume-good').textContent = info.good_count;
-    document.getElementById('resume-bad').textContent = info.bad_count;
-    document.getElementById('resume-skip').textContent = info.skip_count;
-    showScreen('resume-screen');
-  }
-
-  document.getElementById('btn-resume').addEventListener('click', async () => {
-    try {
-      const res = await fetch('/api/classic/resume', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({folder: folderPath}),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || 'Could not resume session.');
-        return;
-      }
-
-      total = data.total;
-      currentIndex = data.current;
-      goodCount = data.good_count;
-      badCount = data.bad_count;
-      skipCount = data.skip_count;
-      updateClassicUI();
-      showScreen('game-screen');
-      loadClassicCard(currentIndex);
-    } catch (err) {
-      console.error(err);
-    }
-  });
-
-  document.getElementById('btn-start-fresh').addEventListener('click', async () => {
-    await fetch('/api/classic/discard_session', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({folder: folderPath}),
-    });
-    pendingSessionInfo = null;
-
-    try {
-      const res = await fetch('/api/scan', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({folder: folderPath}),
-      });
-      const data = await res.json();
-      if (data.subfolders && data.subfolders.length > 0) {
-        subfolderData = data.subfolders;
-        buildSelectScreen(data.subfolders);
-        showScreen('select-screen');
-      } else {
-        await startClassicGame(folderPath, null);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  });
-
-  // ── Select folders (shared) ─────────────────────────────
-  function buildSelectScreen(subfolders) {
-    document.getElementById('select-folder-label').textContent = folderPath;
-    document.getElementById('select-error').textContent = '';
-
-    selectedPaths = new Set(subfolders.map(s => s.path));
-
-    const grid = document.getElementById('folder-grid');
-    grid.innerHTML = '';
-
-    subfolders.forEach(sf => {
-      const card = document.createElement('div');
-      card.className = 'folder-card selected';
-      card.dataset.path = sf.path;
-      card.innerHTML = `
-        <div class="folder-icon">📁</div>
-        <div class="folder-name">${escHtml(sf.name)}</div>
-        <div class="folder-count">${sf.count} image${sf.count !== 1 ? 's' : ''}</div>
-        <div class="folder-check">✓</div>
-      `;
-      card.addEventListener('click', () => toggleFolder(card, sf.path));
-      grid.appendChild(card);
-    });
-
-    updateStartBtn();
-  }
-
-  function toggleFolder(card, path) {
-    if (selectedPaths.has(path)) {
-      selectedPaths.delete(path);
-      card.classList.remove('selected');
-    } else {
-      selectedPaths.add(path);
-      card.classList.add('selected');
-    }
-    updateStartBtn();
-  }
-
-  function updateStartBtn() {
-    const selectedCount = [...document.querySelectorAll('#folder-grid .folder-card')]
-      .filter(c => selectedPaths.has(c.dataset.path))
-      .reduce((sum, c) => {
-        const sf = subfolderData.find(s => s.path === c.dataset.path);
-        return sum + (sf ? sf.count : 0);
-      }, 0);
-
-    const btn = document.getElementById('start-selected-btn');
-    btn.disabled = selectedPaths.size === 0;
-    btn.textContent = selectedPaths.size === 0
-      ? 'Select at least one folder'
-      : `Start with ${selectedCount} image${selectedCount !== 1 ? 's' : ''} →`;
-  }
-
-  document.getElementById('sel-all-btn').addEventListener('click', () => {
-    document.querySelectorAll('#folder-grid .folder-card').forEach(card => {
-      selectedPaths.add(card.dataset.path);
-      card.classList.add('selected');
-    });
-    updateStartBtn();
-  });
-
-  document.getElementById('sel-none-btn').addEventListener('click', () => {
-    selectedPaths.clear();
-    document.querySelectorAll('#folder-grid .folder-card').forEach(card => {
-      card.classList.remove('selected');
-    });
-    updateStartBtn();
-  });
-
-  document.getElementById('start-selected-btn').addEventListener('click', async () => {
-    document.getElementById('select-error').textContent = '';
-    if (selectedPaths.size === 0) return;
-    await startSelectedMode(folderPath, [...selectedPaths]);
-  });
-
-  // ── Classic mode ────────────────────────────────────────
-  async function startClassicGame(folder, selectedPathsList) {
-    try {
-      const body = {folder};
-      if (selectedPathsList) body.selected_paths = selectedPathsList;
-
-      const res = await fetch('/api/classic/start', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        document.getElementById('select-error').textContent = data.error || 'Error starting game.';
-        return;
-      }
-
-      total = data.total;
-      currentIndex = 0;
-      goodCount = 0;
-      badCount = 0;
-      skipCount = 0;
-      updateClassicUI();
-      showScreen('game-screen');
-      loadClassicCard(0);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  function updateClassicUI() {
-    document.getElementById('progress-label').textContent = `${currentIndex} / ${total}`;
-    document.getElementById('progress-fill').style.width = total ? `${(currentIndex / total) * 100}%` : '0%';
-    document.getElementById('cnt-good').textContent = `✓ ${goodCount}`;
-    document.getElementById('cnt-bad').textContent = `✗ ${badCount}`;
-    document.getElementById('cnt-skip').textContent = `– ${skipCount}`;
-  }
-
-  function loadClassicCard(idx) {
-    const area = document.getElementById('card-area');
-    area.innerHTML = '';
-    if (idx >= total) {
-      showClassicDone();
-      return;
-    }
-
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.id = 'current-card';
-
-    const stampGood = document.createElement('div');
-    stampGood.className = 'stamp stamp-good';
-    stampGood.textContent = 'GOOD';
-
-    const stampBad = document.createElement('div');
-    stampBad.className = 'stamp stamp-bad';
-    stampBad.textContent = 'BAD';
-
-    const img = document.createElement('img');
-    img.src = `/api/classic/image/${idx}`;
-    img.alt = 'dataset image';
-    img.draggable = false;
-
-    const footer = document.createElement('div');
-    footer.className = 'card-footer';
-    footer.textContent = `Image ${idx + 1} of ${total}`;
-
-    card.appendChild(stampGood);
-    card.appendChild(stampBad);
-    card.appendChild(img);
-    card.appendChild(footer);
-    area.appendChild(card);
-    initDrag(card, stampGood, stampBad);
-
-    if (idx + 1 < total) {
-      const pre = new Image();
-      pre.src = `/api/classic/image/${idx + 1}`;
-    }
-  }
-
-  const SWIPE_THRESHOLD = 80;
-  const MAX_ROTATION = 20;
-
-  function initDrag(card, stampGood, stampBad) {
-    let startX = 0;
-    let currentX = 0;
-    let dragging = false;
-
-    function onStart(x) {
-      if (isAnimating) return;
-      startX = x;
-      currentX = 0;
-      dragging = true;
-      card.style.transition = 'none';
-    }
-
-    function onMove(x) {
-      if (!dragging) return;
-      currentX = x - startX;
-      const rot = (currentX / window.innerWidth) * MAX_ROTATION;
-      card.style.transform = `translateX(${currentX}px) rotate(${rot}deg)`;
-      const ratio = Math.min(Math.abs(currentX) / SWIPE_THRESHOLD, 1);
-      if (currentX > 0) {
-        stampGood.style.opacity = ratio;
-        stampBad.style.opacity = 0;
-      } else {
-        stampBad.style.opacity = ratio;
-        stampGood.style.opacity = 0;
-      }
-    }
-
-    function onEnd() {
-      if (!dragging) return;
-      dragging = false;
-      if (Math.abs(currentX) >= SWIPE_THRESHOLD) {
-        flyOut(currentX > 0 ? 'good' : 'bad');
-      } else {
-        card.style.transition = 'transform 0.35s cubic-bezier(.25,.8,.25,1)';
-        card.style.transform = '';
-        stampGood.style.opacity = 0;
-        stampBad.style.opacity = 0;
-      }
-    }
-
-    card.addEventListener('mousedown', e => onStart(e.clientX));
-    window.addEventListener('mousemove', e => { if (dragging) onMove(e.clientX); });
-    window.addEventListener('mouseup', onEnd);
-    card.addEventListener('touchstart', e => onStart(e.touches[0].clientX), {passive: true});
-    card.addEventListener('touchmove', e => onMove(e.touches[0].clientX), {passive: true});
-    card.addEventListener('touchend', onEnd);
-  }
-
-  function flyOut(direction) {
-    if (isAnimating) return;
-    isAnimating = true;
-    const card = document.getElementById('current-card');
-    if (!card) return;
-    const xDest = direction === 'good' ? window.innerWidth * 1.5 : -window.innerWidth * 1.5;
-    const rot = direction === 'good' ? MAX_ROTATION : -MAX_ROTATION;
-    card.style.transition = 'transform 0.35s cubic-bezier(.4,0,.2,1), opacity 0.35s';
-    card.style.transform = `translateX(${xDest}px) rotate(${rot}deg)`;
-    card.style.opacity = '0';
-    recordClassicAction(direction);
-  }
-
-  function skipCurrent() {
-    if (isAnimating) return;
-    isAnimating = true;
-    const card = document.getElementById('current-card');
-    if (card) {
-      card.style.transition = 'transform 0.3s ease, opacity 0.3s';
-      card.style.transform = 'translateY(80px)';
-      card.style.opacity = '0';
-    }
-    recordClassicAction('skip');
-  }
-
-  async function recordClassicAction(direction) {
-    try {
-      const res = await fetch('/api/classic/action', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({direction, index: currentIndex}),
-      });
-      const data = await res.json();
-
-      goodCount = data.good_count ?? goodCount;
-      badCount = data.bad_count ?? badCount;
-      skipCount = data.skip_count ?? skipCount;
-
-      if (data.done) {
-        setTimeout(() => {
-          isAnimating = false;
-          showClassicDone();
-        }, 380);
-        return;
-      }
-
-      currentIndex = data.next_index;
-      updateClassicUI();
-      setTimeout(() => {
-        isAnimating = false;
-        loadClassicCard(currentIndex);
-      }, 380);
-    } catch (err) {
-      isAnimating = false;
-      console.error('Action failed', err);
-    }
-  }
-
-  function showClassicDone() {
-    document.getElementById('done-good').textContent = goodCount;
-    document.getElementById('done-bad').textContent = badCount;
-    document.getElementById('done-skip').textContent = skipCount;
-    document.getElementById('done-path').innerHTML =
-      `Images saved to:<br/><strong>${folderPath}/good</strong> and <strong>${folderPath}/bad</strong>`;
-    showScreen('done-screen');
-  }
-
-  document.getElementById('btn-good').addEventListener('click', () => {
-    if (!isAnimating) flyOut('good');
-  });
-  document.getElementById('btn-bad').addEventListener('click', () => {
-    if (!isAnimating) flyOut('bad');
-  });
-  document.getElementById('btn-skip').addEventListener('click', () => {
-    if (!isAnimating) skipCurrent();
-  });
-
-  document.addEventListener('keydown', e => {
-    if (!document.getElementById('game-screen').classList.contains('active')) return;
-    if (isAnimating) return;
-    if (e.key === 'ArrowRight') flyOut('good');
-    else if (e.key === 'ArrowLeft') flyOut('bad');
-    else if (e.key === 'ArrowDown' || e.key === ' ') {
-      e.preventDefault();
-      skipCurrent();
-    }
-  });
-
-  // ── Rating mode ─────────────────────────────────────────
-  function renderLikertQuestions() {
-    const container = document.getElementById('likert-list');
-    container.innerHTML = '';
-
-    ratingQuestionConfig.forEach(question => {
-      const item = document.createElement('div');
-      item.className = 'likert-item';
-
-      const title = document.createElement('h4');
-      title.textContent = question.label;
-
-      const row = document.createElement('div');
-      row.className = 'likert-row';
-
-      for (let value = 1; value <= 5; value += 1) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'choice-btn likert-btn';
-        btn.dataset.question = question.key;
-        btn.dataset.value = String(value);
-        btn.textContent = String(value);
-        btn.addEventListener('click', () => {
-          ratingResponses[question.key] = value;
-          updateRatingChoiceUI();
-        });
-        row.appendChild(btn);
-      }
-
-      item.appendChild(title);
-      item.appendChild(row);
-      container.appendChild(item);
-    });
-  }
-
-  function updateRatingChoiceUI() {
-    document.querySelectorAll('#likert-list .likert-btn').forEach(btn => {
-      const q = btn.dataset.question;
-      const val = Number(btn.dataset.value);
-      btn.classList.toggle('active', ratingResponses[q] === val);
-    });
-
-    ratingSubjective = document.getElementById('subjective-input').value.trim();
-    const allAnswered = ratingQuestionConfig.every(q => Number.isInteger(ratingResponses[q.key]));
-    document.getElementById('rating-next-btn').disabled = !(allAnswered && ratingSubjective);
-  }
-
-  async function startRatingGame(folder, selectedPathsList) {
-    try {
-      const body = {folder};
-      if (selectedPathsList) body.selected_paths = selectedPathsList;
-
-      const res = await fetch('/api/rating/start', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        document.getElementById('select-error').textContent = data.error || 'Error starting rating mode.';
-        return;
-      }
-
-      ratingTotal = data.total;
-      ratingIndex = 0;
-      ratingResponses = {};
-      ratingSubjective = '';
-      ratingAnswers = [];
-      renderLikertQuestions();
-      loadRatingQuestion(0);
-      showScreen('rating-screen');
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  function loadRatingQuestion(idx) {
-    document.getElementById('rating-error').textContent = '';
-    document.getElementById('rating-progress-label').textContent = `Image ${idx + 1} / ${ratingTotal}`;
-    document.getElementById('rating-progress-fill').style.width = `${((idx + 1) / ratingTotal) * 100}%`;
-    document.getElementById('rating-image').src = `/api/rating/image/${idx}`;
-    document.getElementById('subjective-input').value = '';
-    ratingResponses = {};
-    ratingSubjective = '';
-    updateRatingChoiceUI();
-  }
-
-  document.getElementById('subjective-input').addEventListener('input', updateRatingChoiceUI);
-
-  document.getElementById('rating-next-btn').addEventListener('click', async () => {
-    document.getElementById('rating-error').textContent = '';
-
-    const allAnswered = ratingQuestionConfig.every(q => Number.isInteger(ratingResponses[q.key]));
-    ratingSubjective = document.getElementById('subjective-input').value.trim();
-
-    if (!allAnswered || !ratingSubjective) {
-      document.getElementById('rating-error').textContent = 'Answer all 5 Likert questions and the descriptive question.';
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/rating/submit', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          index: ratingIndex,
-          responses: ratingResponses,
-          subjective: ratingSubjective,
-        }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        document.getElementById('rating-error').textContent = data.error || 'Could not save answers.';
-        return;
-      }
-
-      ratingAnswers.push({ ...ratingResponses, subjective: ratingSubjective });
-
-      if (data.done) {
-        let totalPoints = 0;
-        ratingAnswers.forEach(answer => {
-          ratingQuestionConfig.forEach(question => {
-            totalPoints += answer[question.key];
-          });
-        });
-        const divisor = ratingAnswers.length * ratingQuestionConfig.length;
-        const avg = divisor ? (totalPoints / divisor).toFixed(1) : '0.0';
-
-        document.getElementById('rating-answered').textContent = String(ratingAnswers.length);
-        document.getElementById('rating-average').textContent = avg;
-        document.getElementById('rating-mode-total').textContent = String(ratingTotal);
-        document.getElementById('rating-csv-path').innerHTML =
-          `CSV saved at:<br/><strong>${escHtml(data.csv_path)}</strong>`;
-        showScreen('rating-done-screen');
-      } else {
-        ratingIndex = data.next_index;
-        loadRatingQuestion(ratingIndex);
-      }
-    } catch (err) {
-      document.getElementById('rating-error').textContent = 'Could not connect to server.';
-    }
-  });
-
-  // ── Restart handlers ────────────────────────────────────
-  function resetToSetup() {
-    subfolderData = [];
-    selectedPaths = new Set();
-    pendingSessionInfo = null;
-    ratingAnswers = [];
-    document.getElementById('folder-input').value = '';
-    document.getElementById('setup-error').textContent = '';
-    showScreen('setup-screen');
-  }
-
-  document.getElementById('restart-btn').addEventListener('click', resetToSetup);
-  document.getElementById('rating-restart-btn').addEventListener('click', resetToSetup);
-
-  // ── Util ─────────────────────────────────────────────────
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-</script>
+  <!-- ── DONE SCREEN ─────────────────────────────────────── -->
+  <div id="done-screen" class="screen">
+    <h2>🎉 All done!</h2>
+    <div class="summary-grid">
+      <div class="summary-card good"><span class="num" id="done-good">0</span><span class="lbl">Good</span></div>
+      <div class="summary-card bad"><span class="num" id="done-bad">0</span><span class="lbl">Bad</span></div>
+      <div class="summary-card skip"><span class="num" id="done-skip">0</span><span class="lbl">Skipped</span></div>
+    </div>
+    <div class="output-path" id="done-path"></div>
+    <button class="btn-primary" id="restart-btn">Sort Another Folder</button>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
