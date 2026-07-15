@@ -10,15 +10,39 @@ let ratingTotal   = 0;
 let ratingIndex   = 0;
 let ratingAnswers = {};   // { String(idx): answer }
 let ratingResponses  = {};
-let ratingSubjective = '';
 let nav = null;
 
 const QUESTION_CONFIG = [
-  { key: 'do_you_like_this_image',              label: '1. Do you like this image?' },
-  { key: 'does_this_image_look_ai_generated',   label: '2. Do you think this image looks AI generated?' },
-  { key: 'is_the_image_visually_clear',         label: '3. Is this image visually clear?' },
-  { key: 'is_the_content_coherent',             label: '4. Is the content coherent?' },
-  { key: 'would_you_use_this_image_in_a_dataset', label: '5. Would you use this image in a dataset?' },
+  {
+    key:   'match_description',
+    label: '1. How well does the image match the description?',
+    hint:  'Very Bad [1] — Very Well [5]',
+    type:  'likert',
+  },
+  {
+    key:   'originality',
+    label: '2. How original is the image, given it was created with the prompt?',
+    hint:  'Extremely Not Original [1] — Extremely Original [5]',
+    type:  'likert',
+  },
+  {
+    key:   'visual_discomfort',
+    label: '3. To what extent does this image cause you visual discomfort or unease?',
+    hint:  'No Discomfort [1] — Extremely Discomfort [5]',
+    type:  'likert',
+  },
+  {
+    key:   'aesthetic_pleasing',
+    label: '4. How aesthetically pleasing is the image?',
+    hint:  'Extremely Not Pleasing [1] — Extremely Pleasing [5]',
+    type:  'likert',
+  },
+  {
+    key:     'clear_subject',
+    label:   '5. Is it clear who the subject(s) of the image is?',
+    type:    'ternary',
+    options: ['Yes', 'No', 'Maybe'],
+  },
 ];
 
 // ── Navigation controller ─────────────────────────────────
@@ -58,33 +82,58 @@ function renderLikertQuestions() {
   QUESTION_CONFIG.forEach(q => {
     const item  = document.createElement('div');
     item.className = 'likert-item';
+
     const title = document.createElement('h4');
     title.textContent = q.label;
-    const row   = document.createElement('div');
-    row.className = 'likert-row';
-    for (let v = 1; v <= 5; v++) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'choice-btn likert-btn';
-      btn.dataset.question = q.key;
-      btn.dataset.value    = String(v);
-      btn.textContent      = String(v);
-      btn.addEventListener('click', () => { ratingResponses[q.key] = v; updateChoiceUI(); });
-      row.appendChild(btn);
-    }
     item.appendChild(title);
+
+    if (q.hint) {
+      const hint = document.createElement('p');
+      hint.className = 'likert-hint';
+      hint.textContent = q.hint;
+      item.appendChild(hint);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'likert-row';
+
+    if (q.type === 'likert') {
+      for (let v = 1; v <= 5; v++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'choice-btn likert-btn';
+        btn.dataset.question = q.key;
+        btn.dataset.value    = String(v);
+        btn.textContent      = String(v);
+        btn.addEventListener('click', () => { ratingResponses[q.key] = v; updateChoiceUI(); });
+        row.appendChild(btn);
+      }
+    } else if (q.type === 'ternary') {
+      q.options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'choice-btn ternary-btn';
+        btn.dataset.question = q.key;
+        btn.dataset.value    = opt.toLowerCase();
+        btn.textContent      = opt;
+        btn.addEventListener('click', () => { ratingResponses[q.key] = opt.toLowerCase(); updateChoiceUI(); });
+        row.appendChild(btn);
+      });
+    }
+
     item.appendChild(row);
     container.appendChild(item);
   });
 }
 
 function updateChoiceUI() {
-  document.querySelectorAll('#likert-list .likert-btn').forEach(btn => {
-    btn.classList.toggle('active', ratingResponses[btn.dataset.question] === Number(btn.dataset.value));
+  document.querySelectorAll('#likert-list .choice-btn').forEach(btn => {
+    const stored = ratingResponses[btn.dataset.question];
+    // universal comparison: convert stored value to string to match dataset.value
+    btn.classList.toggle('active', stored !== undefined && String(stored) === btn.dataset.value);
   });
-  ratingSubjective = document.getElementById('subjective-input').value.trim();
-  const allAnswered = QUESTION_CONFIG.every(q => Number.isInteger(ratingResponses[q.key]));
-  document.getElementById('rating-next-btn').disabled = !(allAnswered && ratingSubjective);
+  const allAnswered = QUESTION_CONFIG.every(q => ratingResponses[q.key] !== undefined);
+  document.getElementById('rating-next-btn').disabled = !allAnswered;
 }
 
 // ── Question loading ──────────────────────────────────────
@@ -93,26 +142,23 @@ function loadQuestion(idx) {
   document.getElementById('rating-image').src = `/api/rating/image/${idx}?s=${_gameToken}`;
 
   const existing = ratingAnswers[String(idx)];
+  ratingResponses = {};
   if (existing) {
-    ratingResponses = {};
     QUESTION_CONFIG.forEach(q => { ratingResponses[q.key] = existing[q.key]; });
-    document.getElementById('subjective-input').value = existing.subjective || '';
-  } else {
-    ratingResponses = {};
-    document.getElementById('subjective-input').value = '';
   }
-  ratingSubjective = document.getElementById('subjective-input').value.trim();
   updateChoiceUI();
+
+  // Scroll the form back to the top on every image switch
+  const content = document.querySelector('.rating-content');
+  if (content) content.scrollTop = 0;
 }
 
 // ── Answer submission ─────────────────────────────────────
 async function submitAnswer() {
   document.getElementById('rating-error').textContent = '';
-  const allAnswered = QUESTION_CONFIG.every(q => Number.isInteger(ratingResponses[q.key]));
-  ratingSubjective = document.getElementById('subjective-input').value.trim();
-  if (!allAnswered || !ratingSubjective) {
-    document.getElementById('rating-error').textContent =
-      'Answer all 5 Likert questions and the descriptive question.';
+  const allAnswered = QUESTION_CONFIG.every(q => ratingResponses[q.key] !== undefined);
+  if (!allAnswered) {
+    document.getElementById('rating-error').textContent = 'Please answer all 5 questions.';
     return;
   }
 
@@ -120,9 +166,7 @@ async function submitAnswer() {
     const res = await fetch('/api/rating/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        index: ratingIndex, responses: ratingResponses, subjective: ratingSubjective,
-      }),
+      body: JSON.stringify({ index: ratingIndex, responses: ratingResponses }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -130,8 +174,7 @@ async function submitAnswer() {
       return;
     }
 
-    // Cache locally so navigation can pre-fill the form
-    ratingAnswers[String(ratingIndex)] = { ...ratingResponses, subjective: ratingSubjective };
+    ratingAnswers[String(ratingIndex)] = { ...ratingResponses };
 
     if (data.done) {
       document.getElementById('rating-answered').textContent   = String(data.answered ?? Object.keys(ratingAnswers).length);
@@ -184,14 +227,13 @@ export async function startRatingGame(folder, selectedPaths) {
 
 export function initRatingListeners() {
   document.getElementById('rating-next-btn').addEventListener('click', submitAnswer);
-  document.getElementById('subjective-input').addEventListener('input', updateChoiceUI);
   document.getElementById('rating-image').addEventListener('click', () => {
     const src = document.getElementById('rating-image').src;
     if (src) openLightbox(src);
   });
   document.addEventListener('keydown', e => {
     if (!document.getElementById('rating-screen').classList.contains('active')) return;
-    if (e.key === 'ArrowUp')   { e.preventDefault(); if (nav) nav.prev(); }
+    if (e.key === 'ArrowUp')        { e.preventDefault(); if (nav) nav.prev(); }
     else if (e.key === 'ArrowDown') { e.preventDefault(); if (nav) nav.next(); }
   });
 }

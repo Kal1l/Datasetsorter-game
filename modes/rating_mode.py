@@ -2,6 +2,7 @@ import csv
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
 
@@ -10,12 +11,15 @@ from .common import collect_images, selected_images
 RATING_RESULTS_FILE = 'rating_results.csv'
 SESSION_FILE = '.dataset_game_rating_session.json'
 LIKERT_QUESTIONS = [
-    'do_you_like_this_image',
-    'does_this_image_look_ai_generated',
-    'is_the_image_visually_clear',
-    'is_the_content_coherent',
-    'would_you_use_this_image_in_a_dataset',
+    'match_description',
+    'originality',
+    'visual_discomfort',
+    'aesthetic_pleasing',
 ]
+TERNARY_QUESTIONS = [
+    'clear_subject',   # 'yes' | 'no' | 'maybe'
+]
+ALL_QUESTIONS = LIKERT_QUESTIONS + TERNARY_QUESTIONS
 
 rating_bp = Blueprint('rating_mode', __name__)
 
@@ -115,6 +119,11 @@ def _validate_responses(responses):
         if not isinstance(value, int) or value < 1 or value > 5:
             return f'{question} must be an integer from 1 to 5.'
 
+    for question in TERNARY_QUESTIONS:
+        value = responses.get(question)
+        if value not in ('yes', 'no', 'maybe'):
+            return f'{question} must be "yes", "no", or "maybe".'
+
     return None
 
 
@@ -122,21 +131,30 @@ def _write_results_csv():
     if not state['base_folder']:
         raise ValueError('No active rating session.')
 
-    csv_path = os.path.join(state['base_folder'], RATING_RESULTS_FILE)
-    fieldnames = ['timestamp', 'image', *LIKERT_QUESTIONS, 'subjective']
+    # Always save into a dedicated results subfolder
+    results_dir = os.path.join(state['base_folder'], 'rating_results')
+    os.makedirs(results_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    csv_path = os.path.join(results_dir, f'rating_results_{timestamp}.csv')
+    fieldnames = ['timestamp', 'scenario', 'image', *LIKERT_QUESTIONS, *TERNARY_QUESTIONS]
 
     with open(csv_path, 'w', encoding='utf-8', newline='') as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for key in sorted(state['answers'], key=lambda k: int(k)):
             answer = state['answers'][key]
+            parts = Path(answer['image']).parts
+            scenario = parts[0] if len(parts) > 1 else '.'
             row = {
                 'timestamp': datetime.now().isoformat(timespec='seconds'),
+                'scenario': scenario,
                 'image': answer['image'],
-                'subjective': answer['subjective'],
             }
             for question in LIKERT_QUESTIONS:
-                row[question] = answer[question]
+                row[question] = answer.get(question, '')
+            for question in TERNARY_QUESTIONS:
+                row[question] = answer.get(question, '')
             writer.writerow(row)
 
     return csv_path
@@ -149,7 +167,7 @@ def _session_average():
     count = len(state['answers'])
     for answer in state['answers'].values():
         for question in LIKERT_QUESTIONS:
-            total_points += answer[question]
+            total_points += answer.get(question, 0)
     return f'{(total_points / (count * len(LIKERT_QUESTIONS))):.1f}'
 
 
@@ -174,7 +192,7 @@ def start():
         state['current_index'] = 0
         state['base_folder'] = folder
         state['selected_paths'] = selected_paths or []
-        state['answers'] = []
+        state['answers'] = {}
         save_session()
 
     if not state['images']:
@@ -217,12 +235,9 @@ def submit():
     if validation_error:
         return jsonify({'error': validation_error}), 400
 
-    if not subjective:
-        return jsonify({'error': 'Subjective answer is required for each image.'}), 400
-
     rel_image = os.path.relpath(images[idx], state['base_folder'])
-    answer = {'image': rel_image, 'subjective': subjective}
-    for question in LIKERT_QUESTIONS:
+    answer = {'image': rel_image}
+    for question in ALL_QUESTIONS:
         answer[question] = responses[question]
     state['answers'][str(idx)] = answer
 
