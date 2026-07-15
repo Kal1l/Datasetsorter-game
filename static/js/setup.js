@@ -170,13 +170,13 @@ document.getElementById('btn-start-fresh').addEventListener('click', async () =>
 function buildSelectScreen(subfolders) {
   document.getElementById('select-folder-label').textContent = folderPath;
   document.getElementById('select-error').textContent = '';
-  selectedPaths = new Set(subfolders.map(s => s.path));
+  selectedPaths = new Set();   // nothing pre-selected — user clicks to pick
 
   const grid = document.getElementById('folder-grid');
   grid.innerHTML = '';
   subfolders.forEach(sf => {
     const card = document.createElement('div');
-    card.className = 'folder-card selected';
+    card.className = 'folder-card';   // unselected by default
     card.dataset.path = sf.path;
     card.innerHTML = `
       <div class="folder-icon">📁</div>
@@ -185,8 +185,17 @@ function buildSelectScreen(subfolders) {
       <div class="folder-check">✓</div>
     `;
     card.addEventListener('click', () => {
-      if (selectedPaths.has(sf.path)) { selectedPaths.delete(sf.path); card.classList.remove('selected'); }
-      else { selectedPaths.add(sf.path); card.classList.add('selected'); }
+      if (selectedPaths.has(sf.path)) {
+        // Clicking a selected card deselects it
+        selectedPaths.delete(sf.path);
+        card.classList.remove('selected');
+      } else {
+        // Clicking an unselected card exclusively selects it
+        selectedPaths.clear();
+        document.querySelectorAll('#folder-grid .folder-card').forEach(c => c.classList.remove('selected'));
+        selectedPaths.add(sf.path);
+        card.classList.add('selected');
+      }
       updateStartBtn();
     });
     grid.appendChild(card);

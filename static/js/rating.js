@@ -5,6 +5,7 @@ import { createNavigation }    from './navigation.js';
 
 // ── State ─────────────────────────────────────────────────
 let _folder       = '';
+let _gameToken    = '';
 let ratingTotal   = 0;
 let ratingIndex   = 0;
 let ratingAnswers = {};   // { String(idx): answer }
@@ -89,7 +90,7 @@ function updateChoiceUI() {
 // ── Question loading ──────────────────────────────────────
 function loadQuestion(idx) {
   document.getElementById('rating-error').textContent = '';
-  document.getElementById('rating-image').src = `/api/rating/image/${idx}`;
+  document.getElementById('rating-image').src = `/api/rating/image/${idx}?s=${_gameToken}`;
 
   const existing = ratingAnswers[String(idx)];
   if (existing) {
@@ -168,6 +169,7 @@ export async function startRatingGame(folder, selectedPaths) {
       return;
     }
     _folder       = folder;
+    _gameToken    = Date.now().toString(36);
     ratingTotal   = data.total;
     ratingIndex   = data.current ?? 0;
     ratingAnswers = data.answers  || {};

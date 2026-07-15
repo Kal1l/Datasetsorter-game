@@ -5,6 +5,7 @@ import { createNavigation } from './navigation.js';
 
 // ── State ─────────────────────────────────────────────────
 let _folder   = '';
+let _gameToken = '';
 let total     = 0;
 let currentIndex = 0;
 let goodCount = 0, badCount = 0;
@@ -77,7 +78,7 @@ function loadCard(idx) {
   stampBad.textContent = 'BAD';
 
   const img = document.createElement('img');
-  img.src = `/api/classic/image/${idx}`;
+  img.src = `/api/classic/image/${idx}?s=${_gameToken}`;
   img.alt = 'dataset image';
   img.draggable = false;
 
@@ -102,7 +103,7 @@ function loadCard(idx) {
   initDrag(card, stampGood, stampBad);
 
   // Preload next
-  if (idx + 1 < total) { const pre = new Image(); pre.src = `/api/classic/image/${idx + 1}`; }
+  if (idx + 1 < total) { const pre = new Image(); pre.src = `/api/classic/image/${idx + 1}?s=${_gameToken}`; }
 }
 
 // ── Swipe / drag ──────────────────────────────────────────
@@ -227,6 +228,7 @@ export async function startClassicGame(folder, selectedPaths) {
       return;
     }
     _folder = folder;
+    _gameToken = Date.now().toString(36);
     total = data.total; currentIndex = 0;
     goodCount = 0; badCount = 0; judgments = {};
     buildNav();
@@ -246,6 +248,7 @@ export async function resumeClassicGame(folder) {
     const data = await res.json();
     if (!res.ok) { alert(data.error || 'Could not resume session.'); return; }
     _folder = folder;
+    _gameToken = Date.now().toString(36);
     total = data.total; currentIndex = data.current;
     goodCount = data.good_count; badCount = data.bad_count;
     judgments = data.judgments || {};
