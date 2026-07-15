@@ -8,7 +8,8 @@ let pendingSessionMode = null;
 
 // Classic mode state
 let total = 0, currentIndex = 0;
-let goodCount = 0, badCount = 0, skipCount = 0;
+let goodCount = 0, badCount = 0;
+let judgments = {};   // {String(idx): 'good'|'bad'}
 let isAnimating = false;
 let currentClassicCard = null;
 let currentClassicRatio = 1;
@@ -202,6 +203,23 @@ document.querySelectorAll('#mode-grid .mode-card').forEach(btn => {
   });
 });
 
+// ── Browse folder ────────────────────────────────────────
+document.getElementById('browse-btn').addEventListener('click', async () => {
+  document.getElementById('setup-error').textContent = '';
+  try {
+    const res = await fetch('/api/browse', { method: 'POST' });
+    const data = await res.json();
+    if (data.folder) {
+      document.getElementById('folder-input').value = data.folder;
+      document.getElementById('folder-input').focus();
+    } else if (data.error) {
+      document.getElementById('setup-error').textContent = data.error;
+    }
+  } catch (err) {
+    document.getElementById('setup-error').textContent = 'Could not open folder picker.';
+  }
+});
+
 // ── Setup / scan ─────────────────────────────────────────
 document.getElementById('scan-btn').addEventListener('click', doScan);
 document.getElementById('folder-input').addEventListener('keydown', e => {
@@ -231,14 +249,14 @@ async function doScan() {
     }
 
     folderPath = folder;
+    subfolderData = data.subfolders || [];  // always update so switching datasets never shows stale list
     pendingSessionMode = selectedMode;
     pendingSessionInfo = selectedMode === 'classic' ? (data.session || null) : (data.rating_session || null);
 
     if (pendingSessionInfo) {
       showResumeScreen(pendingSessionInfo, selectedMode);
-    } else if (data.subfolders && data.subfolders.length > 0) {
-      subfolderData = data.subfolders;
-      buildSelectScreen(data.subfolders);
+    } else if (subfolderData.length > 0) {
+      buildSelectScreen(subfolderData);
       showScreen('select-screen');
     } else {
       await startSelectedMode(folder, null);
@@ -260,18 +278,20 @@ async function startSelectedMode(folder, selectedPathsList) {
 function showResumeScreen(info, mode) {
   const isRating = mode === 'rating';
   const totalCount = info.total || 0;
-  const doneCount = info.current_index || 0;
+  const doneCount = isRating
+    ? (info.answered || info.current_index || 0)
+    : ((info.good_count || 0) + (info.bad_count || 0));
   const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
   document.getElementById('resume-screen').querySelector('h2').textContent =
     isRating ? 'Resume rating session?' : 'Resume session?';
   document.getElementById('resume-desc').textContent = isRating
     ? `You answered ${info.answered || doneCount} of ${totalCount} images (${pct}% done).`
-    : `You were at image ${doneCount} of ${totalCount} (${pct}% done).`;
+    : `You judged ${doneCount} of ${totalCount} images (${pct}% done).`;
   document.getElementById('resume-fill').style.width = pct + '%';
   document.getElementById('resume-progress-label').textContent = isRating
     ? `${info.answered || doneCount} / ${totalCount} images answered`
-    : `${doneCount} / ${totalCount} images sorted`;
+    : `${doneCount} / ${totalCount} images judged`;
 
   const firstLabel = document.getElementById('resume-good').parentElement.querySelector('.lbl');
   const secondLabel = document.getElementById('resume-bad').parentElement.querySelector('.lbl');
@@ -287,10 +307,11 @@ function showResumeScreen(info, mode) {
   } else {
     document.getElementById('resume-good').textContent = info.good_count;
     document.getElementById('resume-bad').textContent = info.bad_count;
-    document.getElementById('resume-skip').textContent = info.skip_count;
+    const remaining = totalCount - (info.good_count || 0) - (info.bad_count || 0);
+    document.getElementById('resume-skip').textContent = String(Math.max(0, remaining));
     firstLabel.textContent = 'Good';
     secondLabel.textContent = 'Bad';
-    thirdLabel.textContent = 'Skipped';
+    thirdLabel.textContent = 'Remaining';
   }
 
   document.getElementById('btn-resume').textContent = isRating
@@ -325,7 +346,8 @@ document.getElementById('btn-resume').addEventListener('click', async () => {
     currentIndex = data.current;
     goodCount = data.good_count;
     badCount = data.bad_count;
-    skipCount = data.skip_count;
+    judgments = data.judgments || {};
+    buildFilmstrip();
     updateClassicUI();
     showScreen('game-screen');
     loadClassicCard(currentIndex);
@@ -468,7 +490,8 @@ async function startClassicGame(folder, selectedPathsList) {
     currentIndex = 0;
     goodCount = 0;
     badCount = 0;
-    skipCount = 0;
+    judgments = {};
+    buildFilmstrip();
     updateClassicUI();
     showScreen('game-screen');
     loadClassicCard(0);
@@ -478,11 +501,97 @@ async function startClassicGame(folder, selectedPathsList) {
 }
 
 function updateClassicUI() {
-  document.getElementById('progress-label').textContent = `${currentIndex} / ${total}`;
-  document.getElementById('progress-fill').style.width = total ? `${(currentIndex / total) * 100}%` : '0%';
+  const judgedCount = Object.keys(judgments).length;
+  document.getElementById('progress-label').textContent = `${judgedCount} / ${total}`;
+  document.getElementById('progress-fill').style.width = total ? `${(judgedCount / total) * 100}%` : '0%';
   document.getElementById('cnt-good').textContent = `✓ ${goodCount}`;
   document.getElementById('cnt-bad').textContent = `✗ ${badCount}`;
-  document.getElementById('cnt-skip').textContent = `– ${skipCount}`;
+  updateFilmstripTiles();
+}
+
+// ── Filmstrip ───────────────────────────────────────────
+const FILMSTRIP_PAGE_SIZE = 10;
+let filmstripPage = 0;
+
+function getFilmstripPageCount() {
+  return Math.max(1, Math.ceil(total / FILMSTRIP_PAGE_SIZE));
+}
+
+function buildFilmstrip() {
+  filmstripPage = Math.floor(currentIndex / FILMSTRIP_PAGE_SIZE);
+  renderFilmstripPage();
+}
+
+function renderFilmstripPage() {
+  const strip = document.getElementById('filmstrip');
+  strip.innerHTML = '';
+  const start = filmstripPage * FILMSTRIP_PAGE_SIZE;
+  const end = Math.min(start + FILMSTRIP_PAGE_SIZE, total);
+  for (let i = start; i < end; i++) {
+    const tile = document.createElement('button');
+    tile.className = 'filmstrip-tile';
+    tile.dataset.idx = String(i);
+    tile.title = `Image ${i + 1}`;
+    tile.addEventListener('click', () => { if (!isAnimating) jumpToImage(i); });
+    strip.appendChild(tile);
+  }
+  updateFilmstripTileStyles();
+  updateFilmstripArrows();
+}
+
+function updateFilmstripTileStyles() {
+  document.querySelectorAll('#filmstrip .filmstrip-tile').forEach(tile => {
+    const idx = Number(tile.dataset.idx);
+    tile.className = 'filmstrip-tile';
+    if (idx === currentIndex)        tile.classList.add('current');
+    if (judgments[idx] === 'good')   tile.classList.add('good');
+    else if (judgments[idx] === 'bad') tile.classList.add('bad');
+  });
+}
+
+function updateFilmstripArrows() {
+  const prevBtn = document.getElementById('filmstrip-prev-btn');
+  const nextBtn = document.getElementById('filmstrip-next-btn');
+  const label   = document.getElementById('filmstrip-page-label');
+  const pageCount = getFilmstripPageCount();
+  if (prevBtn) prevBtn.disabled = filmstripPage <= 0;
+  if (nextBtn) nextBtn.disabled = filmstripPage >= pageCount - 1;
+  if (label)   label.textContent = `${filmstripPage + 1}`;
+}
+
+function updateFilmstripTiles() {
+  const neededPage = Math.floor(currentIndex / FILMSTRIP_PAGE_SIZE);
+  if (neededPage !== filmstripPage) {
+    filmstripPage = neededPage;
+    renderFilmstripPage();
+  } else {
+    updateFilmstripTileStyles();
+    updateFilmstripArrows();
+  }
+}
+
+document.getElementById('filmstrip-prev-btn').addEventListener('click', () => {
+  if (filmstripPage > 0) { filmstripPage--; renderFilmstripPage(); }
+});
+document.getElementById('filmstrip-next-btn').addEventListener('click', () => {
+  if (filmstripPage < getFilmstripPageCount() - 1) { filmstripPage++; renderFilmstripPage(); }
+});
+
+function jumpToImage(idx) {
+  if (isAnimating) return;
+  currentIndex = idx;
+  updateClassicUI();
+  loadClassicCard(idx);
+}
+
+function findNextUnclassifiedFrom(fromIdx) {
+  for (let i = fromIdx + 1; i < total; i++) {
+    if (!judgments[i]) return i;
+  }
+  for (let i = 0; i < fromIdx; i++) {
+    if (!judgments[i]) return i;
+  }
+  return fromIdx; // all classified
 }
 
 function loadClassicCard(idx) {
@@ -490,10 +599,7 @@ function loadClassicCard(idx) {
   area.innerHTML = '';
   currentClassicCard = null;
   currentClassicRatio = 1;
-  if (idx >= total) {
-    showClassicDone();
-    return;
-  }
+  if (idx < 0 || idx >= total) return;
 
   const card = document.createElement('div');
   card.className = 'card';
@@ -511,6 +617,11 @@ function loadClassicCard(idx) {
   img.src = `/api/classic/image/${idx}`;
   img.alt = 'dataset image';
   img.draggable = false;
+
+  // Faintly show existing judgment so user knows what they previously chose
+  const existing = judgments[idx];
+  if (existing === 'good') stampGood.style.opacity = '0.28';
+  else if (existing === 'bad') stampBad.style.opacity = '0.28';
 
   card.appendChild(stampGood);
   card.appendChild(stampBad);
@@ -617,16 +728,18 @@ function flyOut(direction) {
   recordClassicAction(direction);
 }
 
-function skipCurrent() {
-  if (isAnimating) return;
-  isAnimating = true;
-  const card = document.getElementById('current-card');
-  if (card) {
-    card.style.transition = 'transform 0.3s ease, opacity 0.3s';
-    card.style.transform = 'translateY(80px)';
-    card.style.opacity = '0';
-  }
-  recordClassicAction('skip');
+function prevImage() {
+  if (isAnimating || currentIndex <= 0) return;
+  currentIndex--;
+  updateClassicUI();
+  loadClassicCard(currentIndex);
+}
+
+function nextImage() {
+  if (isAnimating || currentIndex >= total - 1) return;
+  currentIndex++;
+  updateClassicUI();
+  loadClassicCard(currentIndex);
 }
 
 async function recordClassicAction(direction) {
@@ -640,9 +753,10 @@ async function recordClassicAction(direction) {
 
     goodCount = data.good_count ?? goodCount;
     badCount = data.bad_count ?? badCount;
-    skipCount = data.skip_count ?? skipCount;
+    judgments[currentIndex] = direction;
 
     if (data.done) {
+      updateClassicUI();
       setTimeout(() => {
         isAnimating = false;
         showClassicDone();
@@ -650,7 +764,8 @@ async function recordClassicAction(direction) {
       return;
     }
 
-    currentIndex = data.next_index;
+    const nextIdx = findNextUnclassifiedFrom(currentIndex);
+    currentIndex = nextIdx;
     updateClassicUI();
     setTimeout(() => {
       isAnimating = false;
@@ -665,7 +780,6 @@ async function recordClassicAction(direction) {
 function showClassicDone() {
   document.getElementById('done-good').textContent = goodCount;
   document.getElementById('done-bad').textContent = badCount;
-  document.getElementById('done-skip').textContent = skipCount;
   document.getElementById('done-path').innerHTML =
     `Images saved to:<br/><strong>${folderPath}/good</strong> and <strong>${folderPath}/bad</strong>`;
   showScreen('done-screen');
@@ -677,19 +791,15 @@ document.getElementById('btn-good').addEventListener('click', () => {
 document.getElementById('btn-bad').addEventListener('click', () => {
   if (!isAnimating) flyOut('bad');
 });
-document.getElementById('btn-skip').addEventListener('click', () => {
-  if (!isAnimating) skipCurrent();
-});
+document.getElementById('btn-prev').addEventListener('click', prevImage);
+document.getElementById('btn-next').addEventListener('click', nextImage);
 
 document.addEventListener('keydown', e => {
   if (!document.getElementById('game-screen').classList.contains('active')) return;
-  if (isAnimating) return;
-  if (e.key === 'ArrowRight') flyOut('good');
-  else if (e.key === 'ArrowLeft') flyOut('bad');
-  else if (e.key === 'ArrowDown' || e.key === ' ') {
-    e.preventDefault();
-    skipCurrent();
-  }
+  if (e.key === 'ArrowRight') { if (!isAnimating) flyOut('good'); }
+  else if (e.key === 'ArrowLeft') { if (!isAnimating) flyOut('bad'); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); prevImage(); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); nextImage(); }
 });
 
 // ── Rating mode ─────────────────────────────────────────
@@ -840,13 +950,38 @@ function resetToSetup() {
   pendingSessionInfo = null;
   pendingSessionMode = null;
   ratingAnswers = [];
+  folderPath = '';
   document.getElementById('folder-input').value = '';
   document.getElementById('setup-error').textContent = '';
   showScreen('setup-screen');
 }
 
-document.getElementById('restart-btn').addEventListener('click', resetToSetup);
-document.getElementById('rating-restart-btn').addEventListener('click', resetToSetup);
+async function goToSelectScreen() {
+  // Re-scan the current root folder so the list reflects completed sorts
+  try {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({folder: folderPath}),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.subfolders || data.subfolders.length === 0) {
+      resetToSetup();
+      return;
+    }
+    subfolderData = data.subfolders;
+    buildSelectScreen(subfolderData);
+    showScreen('select-screen');
+  } catch (err) {
+    resetToSetup();
+  }
+}
+
+document.getElementById('sort-another-btn').addEventListener('click', goToSelectScreen);
+document.getElementById('new-dataset-btn').addEventListener('click', resetToSetup);
+document.getElementById('rating-another-btn').addEventListener('click', goToSelectScreen);
+document.getElementById('rating-new-dataset-btn').addEventListener('click', resetToSetup);
+document.getElementById('change-dataset-btn').addEventListener('click', resetToSetup);
 
 // ── Util ─────────────────────────────────────────────────
 function escHtml(str) {

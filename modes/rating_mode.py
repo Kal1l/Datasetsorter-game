@@ -24,7 +24,7 @@ state = {
     'current_index': 0,
     'base_folder': '',
     'selected_paths': [],
-    'answers': [],
+    'answers': {},    # {str(idx): answer_dict}
 }
 
 
@@ -78,7 +78,12 @@ def apply_state(data):
     state['current_index'] = data['current_index']
     state['base_folder'] = folder
     state['selected_paths'] = data.get('selected_paths', [])
-    state['answers'] = data.get('answers', [])
+    raw = data.get('answers', {})
+    # Migrate old list-based sessions to dict
+    if isinstance(raw, list):
+        state['answers'] = {str(i): a for i, a in enumerate(raw)}
+    else:
+        state['answers'] = raw
 
 
 def session_info_for_folder(folder):
@@ -87,11 +92,12 @@ def session_info_for_folder(folder):
         return None
 
     total = len(session['images'])
-    done = session['current_index']
+    answers = session.get('answers', {})
+    answered = len(answers) if isinstance(answers, dict) else len(answers)
     return {
-        'current_index': done,
+        'current_index': session['current_index'],
         'total': total,
-        'answered': len(session.get('answers', [])),
+        'answered': answered,
         'selected_paths': session.get('selected_paths', []),
     }
 
@@ -117,15 +123,13 @@ def _write_results_csv():
         raise ValueError('No active rating session.')
 
     csv_path = os.path.join(state['base_folder'], RATING_RESULTS_FILE)
-    exists = os.path.isfile(csv_path)
     fieldnames = ['timestamp', 'image', *LIKERT_QUESTIONS, 'subjective']
 
-    with open(csv_path, 'a', encoding='utf-8', newline='') as handle:
+    with open(csv_path, 'w', encoding='utf-8', newline='') as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        if not exists:
-            writer.writeheader()
-
-        for answer in state['answers']:
+        writer.writeheader()
+        for key in sorted(state['answers'], key=lambda k: int(k)):
+            answer = state['answers'][key]
             row = {
                 'timestamp': datetime.now().isoformat(timespec='seconds'),
                 'image': answer['image'],
@@ -141,14 +145,12 @@ def _write_results_csv():
 def _session_average():
     if not state['answers']:
         return '0.0'
-
     total_points = 0
-    total_values = len(state['answers']) * len(LIKERT_QUESTIONS)
-    for answer in state['answers']:
+    count = len(state['answers'])
+    for answer in state['answers'].values():
         for question in LIKERT_QUESTIONS:
             total_points += answer[question]
-
-    return f'{(total_points / total_values):.1f}'
+    return f'{(total_points / (count * len(LIKERT_QUESTIONS))):.1f}'
 
 
 @rating_bp.route('/api/rating/start', methods=['POST'])
@@ -182,6 +184,7 @@ def start():
         'total': len(state['images']),
         'current': state['current_index'],
         'answered': len(state['answers']),
+        'answers': state['answers'],
     })
 
 
@@ -210,9 +213,6 @@ def submit():
     if idx is None or not isinstance(idx, int) or idx < 0 or idx >= len(images):
         return jsonify({'error': 'Invalid image index.'}), 400
 
-    if idx != state['current_index']:
-        return jsonify({'error': 'Out-of-order answer.'}), 400
-
     validation_error = _validate_responses(responses)
     if validation_error:
         return jsonify({'error': validation_error}), 400
@@ -221,16 +221,13 @@ def submit():
         return jsonify({'error': 'Subjective answer is required for each image.'}), 400
 
     rel_image = os.path.relpath(images[idx], state['base_folder'])
-    answer = {
-        'image': rel_image,
-        'subjective': subjective,
-    }
+    answer = {'image': rel_image, 'subjective': subjective}
     for question in LIKERT_QUESTIONS:
         answer[question] = responses[question]
-    state['answers'].append(answer)
+    state['answers'][str(idx)] = answer
 
-    state['current_index'] = idx + 1
-    done = state['current_index'] >= len(images)
+    state['current_index'] = max(state['current_index'], idx + 1)
+    done = len(state['answers']) >= len(images)
 
     save_session()
 

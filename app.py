@@ -50,6 +50,22 @@ def scan():
         'session': session_info,
         'rating_session': rating_session_info,
     })
+@app.route('/api/browse', methods=['POST'])
+def browse_folder():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.wm_attributes('-topmost', 1)
+        folder = filedialog.askdirectory(title='Select Dataset Folder')
+        root.destroy()
+        if folder:
+            return jsonify({'folder': os.path.normpath(folder)})
+        return jsonify({'folder': None})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     print("Dataset Game running at http://localhost:5000")
     app.run(debug=False, port=5000)

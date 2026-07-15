@@ -18,7 +18,7 @@ state = {
     'bad_folder': '',
     'good_count': 0,
     'bad_count': 0,
-    'skip_count': 0,
+    'judgments': {},      # {str(idx): 'good'|'bad'}
     'selected_paths': [],
 }
 
@@ -37,7 +37,7 @@ def save_session():
         'current_index': state['current_index'],
         'good_count': state['good_count'],
         'bad_count': state['bad_count'],
-        'skip_count': state['skip_count'],
+        'judgments': state['judgments'],
     }
     try:
         with open(session_path(state['base_folder']), 'w', encoding='utf-8') as handle:
@@ -76,7 +76,7 @@ def apply_state(data):
     state['bad_folder'] = os.path.join(folder, 'bad')
     state['good_count'] = data.get('good_count', 0)
     state['bad_count'] = data.get('bad_count', 0)
-    state['skip_count'] = data.get('skip_count', 0)
+    state['judgments'] = data.get('judgments', {})
     state['selected_paths'] = data.get('selected_paths', [])
     os.makedirs(state['good_folder'], exist_ok=True)
     os.makedirs(state['bad_folder'], exist_ok=True)
@@ -88,13 +88,12 @@ def session_info_for_folder(folder):
         return None
 
     total = len(session['images'])
-    done = session['current_index']
     return {
-        'current_index': done,
+        'current_index': session['current_index'],
         'total': total,
         'good_count': session.get('good_count', 0),
         'bad_count': session.get('bad_count', 0),
-        'skip_count': session.get('skip_count', 0),
+        'judgments': session.get('judgments', {}),
         'selected_paths': session.get('selected_paths', []),
     }
 
@@ -118,7 +117,7 @@ def resume():
         'current': state['current_index'],
         'good_count': state['good_count'],
         'bad_count': state['bad_count'],
-        'skip_count': state['skip_count'],
+        'judgments': state['judgments'],
     })
 
 
@@ -143,7 +142,7 @@ def start():
     state['bad_folder'] = os.path.join(folder, 'bad')
     state['good_count'] = 0
     state['bad_count'] = 0
-    state['skip_count'] = 0
+    state['judgments'] = {}
     state['selected_paths'] = selected_paths or []
 
     os.makedirs(state['good_folder'], exist_ok=True)
@@ -179,14 +178,31 @@ def action():
     if idx is None or idx < 0 or idx >= len(images):
         return jsonify({'error': 'Invalid index'}), 400
 
-    if direction not in ('good', 'bad', 'skip'):
+    if direction not in ('good', 'bad'):
         return jsonify({'error': 'Invalid direction'}), 400
 
-    if direction != 'skip':
-        img_path = images[idx]
-        base = state['base_folder']
-        rel_path = os.path.relpath(img_path, base)
+    img_path = images[idx]
+    base = state['base_folder']
+    rel_path = os.path.relpath(img_path, base)
+    str_idx = str(idx)
+    old_judgment = state['judgments'].get(str_idx)
 
+    if old_judgment != direction:
+        # Remove old copy when re-judging
+        if old_judgment == 'good':
+            try:
+                os.remove(os.path.join(state['good_folder'], rel_path))
+            except OSError:
+                pass
+            state['good_count'] -= 1
+        elif old_judgment == 'bad':
+            try:
+                os.remove(os.path.join(state['bad_folder'], rel_path))
+            except OSError:
+                pass
+            state['bad_count'] -= 1
+
+        # Copy to new destination
         if direction == 'good':
             dest = os.path.join(state['good_folder'], rel_path)
             state['good_count'] += 1
@@ -196,12 +212,11 @@ def action():
 
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copy2(img_path, dest)
-    else:
-        state['skip_count'] += 1
+        state['judgments'][str_idx] = direction
 
-    next_index = idx + 1
-    state['current_index'] = next_index
-    done = next_index >= len(images)
+    # Advance sequential position for session resume
+    state['current_index'] = max(state['current_index'], idx + 1)
+    done = len(state['judgments']) >= len(images)
 
     save_session()
     if done:
@@ -209,11 +224,9 @@ def action():
 
     return jsonify({
         'done': done,
-        'next_index': next_index,
-        'total': len(images),
         'good_count': state['good_count'],
         'bad_count': state['bad_count'],
-        'skip_count': state['skip_count'],
+        'judged_count': len(state['judgments']),
     })
 
 

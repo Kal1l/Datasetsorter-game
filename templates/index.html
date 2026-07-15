@@ -30,9 +30,12 @@
 
     <div class="input-group">
       <label>Dataset Folder Path</label>
-      <input id="folder-input" type="text"
-             placeholder="C:\Users\you\my-dataset"
-             autocomplete="off" spellcheck="false" />
+      <div class="path-input-row">
+        <input id="folder-input" type="text"
+               placeholder="C:\Users\you\my-dataset"
+               autocomplete="off" spellcheck="false" />
+        <button class="btn-browse" id="browse-btn" type="button">Browse…</button>
+      </div>
     </div>
 
     <div class="error-msg" id="setup-error"></div>
@@ -81,6 +84,7 @@
     <div class="select-footer">
       <div class="error-msg" id="select-error"></div>
       <button class="btn-primary" id="start-selected-btn">Start →</button>
+      <button class="btn-secondary" id="change-dataset-btn">← Change Dataset</button>
     </div>
   </div>
 
@@ -94,7 +98,6 @@
       <div class="counters">
         <span class="cnt-good" id="cnt-good">✓ 0</span>
         <span class="cnt-bad" id="cnt-bad">✗ 0</span>
-        <span class="cnt-skip" id="cnt-skip">– 0</span>
       </div>
     </div>
 
@@ -102,17 +105,27 @@
 
     <div class="action-buttons">
       <button class="action-btn btn-bad" id="btn-bad" title="Bad (←)">✗</button>
-      <button class="action-btn btn-skip" id="btn-skip" title="Skip (↓)">–</button>
+      <button class="action-btn btn-nav" id="btn-prev" title="Previous (↑)">‹</button>
+      <button class="action-btn btn-nav" id="btn-next" title="Next (↓)">›</button>
       <button class="action-btn btn-good" id="btn-good" title="Good (→)">✓</button>
     </div>
 
-    <div class="hint">← Bad &nbsp;·&nbsp; → Good &nbsp;·&nbsp; ↓ Skip &nbsp;·&nbsp; Drag the card &nbsp;·&nbsp; Tap image to zoom</div>
+    <div class="filmstrip-wrap">
+      <div id="filmstrip-container" class="filmstrip-container">
+        <button class="filmstrip-arrow" id="filmstrip-prev-btn" disabled>‹</button>
+        <div id="filmstrip" class="filmstrip"></div>
+        <button class="filmstrip-arrow" id="filmstrip-next-btn">›</button>
+      </div>
+      <span class="filmstrip-page-label" id="filmstrip-page-label">1</span>
+    </div>
+
+    <div class="hint">← Bad &nbsp;·&nbsp; → Good &nbsp;·&nbsp; ↑↓ Navigate &nbsp;·&nbsp; Drag the card &nbsp;·&nbsp; Tap image to zoom</div>
   </div>
 
   <!-- ── RATING MODE SCREEN ─────────────────────────────── -->
   <div id="rating-screen" class="screen">
     <div class="top-bar">
-      <div class="progress-label top-label" id="rating-progress-label">Image 1 / 1</div>
+      <div class="progress-label top-label" id="rating-progress-label">0 / 0 answered</div>
       <div class="progress-bar-bg top-progress-bar">
         <div class="progress-bar-fill" id="rating-progress-fill"></div>
       </div>
@@ -130,9 +143,21 @@
         <button class="btn-primary" id="rating-next-btn" disabled>Submit answer →</button>
       </div>
     </div>
-  </div>
 
-  <!-- ── RATING DONE ─────────────────────────────────────── -->
+    <div class="rating-nav-bar">
+      <button class="action-btn btn-nav" id="rating-btn-prev" title="Previous (↑)">‹</button>
+      <button class="action-btn btn-nav" id="rating-btn-next" title="Next (↓)">›</button>
+    </div>
+
+    <div class="filmstrip-wrap">
+      <div id="rating-filmstrip-container" class="filmstrip-container">
+        <button class="filmstrip-arrow" id="rating-filmstrip-prev-btn" disabled>‹</button>
+        <div id="rating-filmstrip" class="filmstrip"></div>
+        <span class="filmstrip-page-label" id="rating-filmstrip-page-label">1</span>
+        <button class="filmstrip-arrow" id="rating-filmstrip-next-btn">›</button>
+      </div>
+    </div>
+  </div>
   <div id="rating-done-screen" class="screen">
     <h2>✅ Rating mode complete</h2>
     <div class="summary-grid">
@@ -141,19 +166,24 @@
       <div class="summary-card"><span class="num" id="rating-mode-total">0</span><span class="lbl">Total</span></div>
     </div>
     <div class="output-path" id="rating-csv-path"></div>
-    <button class="btn-primary" id="rating-restart-btn">Run Another Session</button>
+    <div class="done-actions">
+      <button class="btn-primary" id="rating-another-btn">Rate Another Folder →</button>
+      <button class="btn-secondary" id="rating-new-dataset-btn">New Dataset</button>
+    </div>
   </div>
 
   <!-- ── DONE SCREEN ─────────────────────────────────────── -->
   <div id="done-screen" class="screen">
     <h2>🎉 All done!</h2>
-    <div class="summary-grid">
+    <div class="summary-grid done-summary-grid">
       <div class="summary-card good"><span class="num" id="done-good">0</span><span class="lbl">Good</span></div>
       <div class="summary-card bad"><span class="num" id="done-bad">0</span><span class="lbl">Bad</span></div>
-      <div class="summary-card skip"><span class="num" id="done-skip">0</span><span class="lbl">Skipped</span></div>
     </div>
     <div class="output-path" id="done-path"></div>
-    <button class="btn-primary" id="restart-btn">Sort Another Folder</button>
+    <div class="done-actions">
+      <button class="btn-primary" id="sort-another-btn">Sort Another Folder →</button>
+      <button class="btn-secondary" id="new-dataset-btn">New Dataset</button>
+    </div>
   </div>
 
   <!-- ── IMAGE LIGHTBOX ─────────────────────────────────── -->
@@ -171,6 +201,6 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/setup.js') }}"></script>
 </body>
 </html>
