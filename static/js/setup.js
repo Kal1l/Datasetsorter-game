@@ -186,13 +186,9 @@ function buildSelectScreen(subfolders) {
     `;
     card.addEventListener('click', () => {
       if (selectedPaths.has(sf.path)) {
-        // Clicking a selected card deselects it
         selectedPaths.delete(sf.path);
         card.classList.remove('selected');
       } else {
-        // Clicking an unselected card exclusively selects it
-        selectedPaths.clear();
-        document.querySelectorAll('#folder-grid .folder-card').forEach(c => c.classList.remove('selected'));
         selectedPaths.add(sf.path);
         card.classList.add('selected');
       }
