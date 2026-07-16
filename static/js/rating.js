@@ -177,9 +177,6 @@ async function submitAnswer() {
     ratingAnswers[String(ratingIndex)] = { ...ratingResponses };
 
     if (data.done) {
-      document.getElementById('rating-answered').textContent   = String(data.answered ?? Object.keys(ratingAnswers).length);
-      document.getElementById('rating-average').textContent    = data.average || '0.0';
-      document.getElementById('rating-mode-total').textContent = String(ratingTotal);
       document.getElementById('rating-csv-path').innerHTML     =
         `CSV saved at:<br/><strong>${escHtml(data.csv_path)}</strong>`;
       showScreen('rating-done-screen');

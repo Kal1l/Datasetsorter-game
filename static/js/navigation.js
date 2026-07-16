@@ -82,20 +82,20 @@ export function createNavigation(cfg) {
     if (idx < getTotal() - 1) onNavigate(idx + 1);
   }
 
-  // Wire filmstrip page arrows
+  // Wire filmstrip page arrows (use onclick to avoid stacking listeners on re-init)
   if (filmstripPrevBtn) {
-    filmstripPrevBtn.addEventListener('click', () => {
+    filmstripPrevBtn.onclick = () => {
       if (page > 0) { page--; renderPage(); }
-    });
+    };
   }
   if (filmstripNextBtn) {
-    filmstripNextBtn.addEventListener('click', () => {
+    filmstripNextBtn.onclick = () => {
       if (page < pageCount() - 1) { page++; renderPage(); }
-    });
+    };
   }
-  // Wire image prev/next buttons
-  if (prevBtn) prevBtn.addEventListener('click', prev);
-  if (nextBtn) nextBtn.addEventListener('click', next);
+  // Wire image prev/next buttons (use onclick to avoid stacking listeners on re-init)
+  if (prevBtn) prevBtn.onclick = prev;
+  if (nextBtn) nextBtn.onclick = next;
 
   return { build, update, prev, next };
 }
