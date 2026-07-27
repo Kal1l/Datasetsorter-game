@@ -4,46 +4,15 @@ import { openLightbox }        from './lightbox.js';
 import { createNavigation }    from './navigation.js';
 
 // ── State ─────────────────────────────────────────────────
-let _folder       = '';
-let _gameToken    = '';
-let ratingTotal   = 0;
-let ratingIndex   = 0;
-let ratingAnswers = {};   // { String(idx): answer }
+let _folder          = '';
+let _gameToken       = '';
+let _evaluator       = '';
+let _questionSet     = null;   // { name, questions: [...] }
+let ratingTotal      = 0;
+let ratingIndex      = 0;
+let ratingAnswers    = {};     // { String(idx): true } — answered status only
 let ratingResponses  = {};
-let nav = null;
-
-const QUESTION_CONFIG = [
-  {
-    key:   'match_description',
-    label: '1. How well does the image match the description?',
-    hint:  'Very Bad [1] — Very Well [5]',
-    type:  'likert',
-  },
-  {
-    key:   'originality',
-    label: '2. How original is the image, given it was created with the prompt?',
-    hint:  'Extremely Not Original [1] — Extremely Original [5]',
-    type:  'likert',
-  },
-  {
-    key:   'visual_discomfort',
-    label: '3. To what extent does this image cause you visual discomfort or unease?',
-    hint:  'No Discomfort [1] — Extremely Discomfort [5]',
-    type:  'likert',
-  },
-  {
-    key:   'aesthetic_pleasing',
-    label: '4. How aesthetically pleasing is the image?',
-    hint:  'Extremely Not Pleasing [1] — Extremely Pleasing [5]',
-    type:  'likert',
-  },
-  {
-    key:     'clear_subject',
-    label:   '5. Is it clear who the subject(s) of the image is?',
-    type:    'ternary',
-    options: ['Yes', 'No', 'Maybe'],
-  },
-];
+let nav              = null;
 
 // ── Navigation controller ─────────────────────────────────
 function buildNav() {
@@ -52,12 +21,12 @@ function buildNav() {
     filmstripPrevBtn:   document.getElementById('rating-filmstrip-prev-btn'),
     filmstripNextBtn:   document.getElementById('rating-filmstrip-next-btn'),
     filmstripPageLabel: document.getElementById('rating-filmstrip-page-label'),
-    prevBtn: document.getElementById('rating-btn-prev'),
-    nextBtn: document.getElementById('rating-btn-next'),
-    getTotal:        () => ratingTotal,
-    getCurrentIndex: () => ratingIndex,
-    getStatus:       idx => ratingAnswers[String(idx)] ? 'answered' : null,
-    onNavigate:      navigateTo,
+    prevBtn:            document.getElementById('rating-btn-prev'),
+    nextBtn:            document.getElementById('rating-btn-next'),
+    getTotal:           () => ratingTotal,
+    getCurrentIndex:    () => ratingIndex,
+    getStatus:          idx => ratingAnswers[String(idx)] ? 'answered' : null,
+    onNavigate:         navigateTo,
   });
 }
 
@@ -79,8 +48,10 @@ function updateProgressUI() {
 function renderLikertQuestions() {
   const container = document.getElementById('likert-list');
   container.innerHTML = '';
-  QUESTION_CONFIG.forEach(q => {
-    const item  = document.createElement('div');
+  if (!_questionSet?.questions?.length) return;
+
+  _questionSet.questions.forEach(q => {
+    const item = document.createElement('div');
     item.className = 'likert-item';
 
     const title = document.createElement('h4');
@@ -98,7 +69,7 @@ function renderLikertQuestions() {
     row.className = 'likert-row';
 
     if (q.type === 'likert') {
-      for (let v = 1; v <= 5; v++) {
+      for (let v = (q.min ?? 1); v <= (q.max ?? 5); v++) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'choice-btn likert-btn';
@@ -109,7 +80,7 @@ function renderLikertQuestions() {
         row.appendChild(btn);
       }
     } else if (q.type === 'ternary') {
-      q.options.forEach(opt => {
+      (q.options ?? []).forEach(opt => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'choice-btn ternary-btn';
@@ -129,10 +100,10 @@ function renderLikertQuestions() {
 function updateChoiceUI() {
   document.querySelectorAll('#likert-list .choice-btn').forEach(btn => {
     const stored = ratingResponses[btn.dataset.question];
-    // universal comparison: convert stored value to string to match dataset.value
     btn.classList.toggle('active', stored !== undefined && String(stored) === btn.dataset.value);
   });
-  const allAnswered = QUESTION_CONFIG.every(q => ratingResponses[q.key] !== undefined);
+  const questions   = _questionSet?.questions ?? [];
+  const allAnswered = questions.every(q => ratingResponses[q.key] !== undefined);
   document.getElementById('rating-next-btn').disabled = !allAnswered;
 }
 
@@ -140,15 +111,8 @@ function updateChoiceUI() {
 function loadQuestion(idx) {
   document.getElementById('rating-error').textContent = '';
   document.getElementById('rating-image').src = `/api/rating/image/${idx}?s=${_gameToken}`;
-
-  const existing = ratingAnswers[String(idx)];
   ratingResponses = {};
-  if (existing) {
-    QUESTION_CONFIG.forEach(q => { ratingResponses[q.key] = existing[q.key]; });
-  }
   updateChoiceUI();
-
-  // Scroll the form back to the top on every image switch
   const content = document.querySelector('.rating-content');
   if (content) content.scrollTop = 0;
 }
@@ -156,17 +120,19 @@ function loadQuestion(idx) {
 // ── Answer submission ─────────────────────────────────────
 async function submitAnswer() {
   document.getElementById('rating-error').textContent = '';
-  const allAnswered = QUESTION_CONFIG.every(q => ratingResponses[q.key] !== undefined);
+  const questions   = _questionSet?.questions ?? [];
+  const allAnswered = questions.every(q => ratingResponses[q.key] !== undefined);
   if (!allAnswered) {
-    document.getElementById('rating-error').textContent = 'Please answer all 5 questions.';
+    document.getElementById('rating-error').textContent =
+      `Please answer all ${questions.length} question${questions.length !== 1 ? 's' : ''}.`;
     return;
   }
 
   try {
     const res = await fetch('/api/rating/submit', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ index: ratingIndex, responses: ratingResponses }),
+      body:    JSON.stringify({ index: ratingIndex, responses: ratingResponses }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -174,11 +140,11 @@ async function submitAnswer() {
       return;
     }
 
-    ratingAnswers[String(ratingIndex)] = { ...ratingResponses };
+    ratingAnswers[String(ratingIndex)] = true;
 
     if (data.done) {
-      document.getElementById('rating-csv-path').innerHTML     =
-        `CSV saved at:<br/><strong>${escHtml(data.csv_path)}</strong>`;
+      document.getElementById('rating-done-path').innerHTML =
+        `Evaluations saved to:<br/><strong>${escHtml(data.eval_folder)}</strong>`;
       showScreen('rating-done-screen');
     } else {
       navigateTo(findNextUnanswered(ratingIndex));
@@ -195,31 +161,49 @@ function findNextUnanswered(from) {
 }
 
 // ── Public API ────────────────────────────────────────────
-export async function startRatingGame(folder, selectedPaths) {
+export async function startRatingGame(folder, selectedPaths, evaluator = null, questionSetName = null) {
   try {
     const body = { folder };
-    if (selectedPaths) body.selected_paths = selectedPaths;
+    if (selectedPaths)   body.selected_paths    = selectedPaths;
+    if (evaluator)       body.evaluator         = evaluator;
+    if (questionSetName) body.question_set_name = questionSetName;
+
     const res  = await fetch('/api/rating/start', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const data = await res.json();
     if (!res.ok) {
-      document.getElementById('select-error').textContent = data.error || 'Error starting rating mode.';
+      // Try visible error elements in likely-visible screens
+      for (const id of ['rating-config-error', 'select-error', 'setup-error']) {
+        const el = document.getElementById(id);
+        if (el) { el.textContent = data.error || 'Error starting rating mode.'; break; }
+      }
       return;
     }
-    _folder       = folder;
-    _gameToken    = Date.now().toString(36);
-    ratingTotal   = data.total;
-    ratingIndex   = data.current ?? 0;
-    ratingAnswers = data.answers  || {};
+
+    _folder      = folder;
+    _evaluator   = data.evaluator;
+    _questionSet = data.question_set;
+    _gameToken   = Date.now().toString(36);
+    ratingTotal  = data.total;
+    ratingIndex  = data.current ?? 0;
+
+    ratingAnswers = {};
+    (data.answered_indices || []).forEach(i => { ratingAnswers[String(i)] = true; });
+
+    const evalLabel = document.getElementById('rating-evaluator-label');
+    if (evalLabel) evalLabel.textContent = _evaluator;
+
     renderLikertQuestions();
     buildNav();
     updateProgressUI();
     showScreen('rating-screen');
     nav.build();
     loadQuestion(ratingIndex);
-  } catch (err) { console.error(err); }
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 export function initRatingListeners() {

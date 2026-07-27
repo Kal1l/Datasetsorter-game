@@ -7,23 +7,22 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
-  <!-- ── SETUP SCREEN ────────────────────────────────────── -->
+
+  <!-- ── SETUP SCREEN ─────────────────────────────────── -->
   <div id="setup-screen" class="screen active">
     <h1>Dataset Game</h1>
-    <p>Point to a folder full of images.<br />
-       Swipe <strong style="color:var(--good)">right</strong> to keep &nbsp;·&nbsp;
-       Swipe <strong style="color:var(--bad)">left</strong> to discard.</p>
+    <p>Choose a mode and point to a folder full of images.</p>
 
     <div class="input-group">
       <label>Game Mode</label>
       <div class="mode-grid" id="mode-grid">
         <button class="mode-card active" type="button" data-mode="classic">
           <h3>Classic Sort</h3>
-          <p>Sort all selected images into good, bad, or skip.</p>
+          <p>Sort images into good or bad using swipe or keyboard.</p>
         </button>
         <button class="mode-card" type="button" data-mode="rating">
           <h3>Rating Survey</h3>
-          <p>For each image, answer 5 Likert-scale questions (1-5) and 1 descriptive question.</p>
+          <p>Rate each image with a customizable question set. Results saved per evaluator.</p>
         </button>
       </div>
     </div>
@@ -40,13 +39,17 @@
 
     <div class="error-msg" id="setup-error"></div>
     <button class="btn-primary" id="scan-btn">Next →</button>
+
+    <div class="setup-divider"></div>
+    <button class="btn-secondary" id="review-btn" type="button">📋 Review Evaluations</button>
   </div>
 
-  <!-- ── RESUME SCREEN ────────────────────────────────────── -->
+  <!-- ── RESUME SCREEN ─────────────────────────────────── -->
   <div id="resume-screen" class="screen">
     <div class="resume-icon">💾</div>
     <h2>Resume session?</h2>
     <p id="resume-desc"></p>
+    <p id="resume-rating-meta" class="muted-text" style="display:none"></p>
 
     <div class="resume-progress">
       <div class="progress-bar-bg">
@@ -67,20 +70,17 @@
     </div>
   </div>
 
-  <!-- ── SELECT SCREEN ───────────────────────────────────── -->
+  <!-- ── SELECT SCREEN ─────────────────────────────────── -->
   <div id="select-screen" class="screen">
     <div class="select-header">
       <h2>Select folders to sort</h2>
       <p id="select-folder-label"></p>
     </div>
-
     <div class="select-toolbar">
       <button class="btn-sm" id="sel-all-btn">Select all</button>
       <button class="btn-sm" id="sel-none-btn">None</button>
     </div>
-
     <div class="folder-grid" id="folder-grid"></div>
-
     <div class="select-footer">
       <div class="error-msg" id="select-error"></div>
       <button class="btn-primary" id="start-selected-btn">Start →</button>
@@ -88,7 +88,59 @@
     </div>
   </div>
 
-  <!-- ── GAME SCREEN ─────────────────────────────────────── -->
+  <!-- ── RATING CONFIG SCREEN ──────────────────────────── -->
+  <div id="rating-config-screen" class="screen">
+    <h2>Rating Survey Setup</h2>
+    <p class="muted-text" id="rating-config-folder-label"></p>
+
+    <div class="input-group">
+      <label>Your Name (Evaluator)</label>
+      <input id="rating-evaluator-input" type="text"
+             placeholder="e.g. João" autocomplete="off" spellcheck="false" />
+    </div>
+
+    <div class="input-group">
+      <div class="qs-selector-header">
+        <label>Question Set</label>
+        <button type="button" class="btn-sm" id="rating-manage-sets-btn">Manage Sets</button>
+      </div>
+      <div id="rating-qs-list" class="qs-select-list"></div>
+    </div>
+
+    <div class="error-msg" id="rating-config-error"></div>
+    <button class="btn-primary" id="rating-config-start-btn" disabled>Start Rating →</button>
+    <button class="btn-secondary" id="rating-config-back-btn">← Back</button>
+  </div>
+
+  <!-- ── QUESTION SETS SCREEN ──────────────────────────── -->
+  <div id="question-sets-screen" class="screen">
+    <h2>Question Sets</h2>
+    <div class="error-msg" id="qs-error"></div>
+    <div id="qs-list" class="qs-list"></div>
+    <div class="qs-toolbar">
+      <button class="btn-sm" id="qs-new-btn">+ New Set</button>
+      <button class="btn-sm" id="qs-import-btn">Import JSON</button>
+      <input id="qs-import-input" type="file" accept=".json" style="display:none" />
+    </div>
+    <button class="btn-secondary" id="qs-return-btn">← Back</button>
+  </div>
+
+  <!-- ── QUESTION SET EDITOR SCREEN ────────────────────── -->
+  <div id="question-set-editor-screen" class="screen">
+    <h2 id="qs-editor-title">New Question Set</h2>
+    <div class="input-group">
+      <label>Set Name</label>
+      <input id="qs-editor-name" type="text"
+             placeholder="e.g. AI Image Quality" autocomplete="off" />
+    </div>
+    <div id="qs-questions-list" class="qs-questions-list"></div>
+    <button class="btn-sm" id="qs-add-question-btn" style="margin-top:8px">+ Add Question</button>
+    <div class="error-msg" id="qs-editor-error"></div>
+    <button class="btn-primary" id="qs-save-btn">Save Set</button>
+    <button class="btn-secondary" id="qs-editor-back-btn">← Cancel</button>
+  </div>
+
+  <!-- ── GAME SCREEN (classic) ─────────────────────────── -->
   <div id="game-screen" class="screen">
     <div class="top-bar">
       <div class="progress-label top-label" id="progress-label">0 / 0</div>
@@ -97,16 +149,16 @@
       </div>
       <div class="counters">
         <span class="cnt-good" id="cnt-good">✓ 0</span>
-        <span class="cnt-bad" id="cnt-bad">✗ 0</span>
+        <span class="cnt-bad"  id="cnt-bad">✗ 0</span>
       </div>
     </div>
 
     <div class="card-area" id="card-area"></div>
 
     <div class="action-buttons">
-      <button class="action-btn btn-bad" id="btn-bad" title="Bad (←)">✗</button>
-      <button class="action-btn btn-nav" id="btn-prev" title="Previous (↑)">‹</button>
-      <button class="action-btn btn-nav" id="btn-next" title="Next (↓)">›</button>
+      <button class="action-btn btn-bad"  id="btn-bad"  title="Bad (←)">✗</button>
+      <button class="action-btn btn-nav"  id="btn-prev" title="Previous (↑)">‹</button>
+      <button class="action-btn btn-nav"  id="btn-next" title="Next (↓)">›</button>
       <button class="action-btn btn-good" id="btn-good" title="Good (→)">✓</button>
     </div>
 
@@ -122,19 +174,28 @@
     <div class="hint">← Bad &nbsp;·&nbsp; → Good &nbsp;·&nbsp; ↑↓ Navigate &nbsp;·&nbsp; Drag the card &nbsp;·&nbsp; Tap image to zoom</div>
   </div>
 
-  <!-- ── RATING MODE SCREEN ─────────────────────────────── -->
+  <!-- ── RATING SCREEN ─────────────────────────────────── -->
   <div id="rating-screen" class="screen">
     <div class="top-bar">
       <div class="progress-label top-label" id="rating-progress-label">0 / 0 answered</div>
       <div class="progress-bar-bg top-progress-bar">
         <div class="progress-bar-fill" id="rating-progress-fill"></div>
       </div>
+      <div class="rating-evaluator-chip">
+        <span id="rating-evaluator-label">—</span>
+      </div>
+    </div>
+
+    <div class="rating-nav-bar">
+      <button class="action-btn btn-nav" id="rating-btn-prev" title="Previous (↑)">‹</button>
+      <button class="btn-sm"             id="rating-exit-btn">Exit</button>
+      <button class="action-btn btn-nav" id="rating-btn-next" title="Next (↓)">›</button>
     </div>
 
     <div class="rating-frame">
       <img id="rating-image" src="" alt="rating question image" />
       <div class="rating-content">
-        <div class="likert-legend" id="likert-legend">Select the best option for each question below.</div>
+        <div class="likert-legend">Select the best option for each question below.</div>
         <div class="likert-list" id="likert-list"></div>
         <div class="error-msg" id="rating-error"></div>
         <button class="btn-primary" id="rating-next-btn" disabled>Submit answer →</button>
@@ -155,16 +216,18 @@
       </div>
     </div>
   </div>
+
+  <!-- ── RATING DONE SCREEN ────────────────────────────── -->
   <div id="rating-done-screen" class="screen">
-    <h2>✅ Rating mode complete</h2>
-    <div class="output-path" id="rating-csv-path"></div>
+    <h2>✅ Rating complete!</h2>
+    <div class="output-path" id="rating-done-path"></div>
     <div class="done-actions">
-      <button class="btn-primary" id="rating-another-btn">Rate Another Folder →</button>
+      <button class="btn-primary"   id="rating-another-btn">Rate Another Folder →</button>
       <button class="btn-secondary" id="rating-new-dataset-btn">New Dataset</button>
     </div>
   </div>
 
-  <!-- ── DONE SCREEN ─────────────────────────────────────── -->
+  <!-- ── DONE SCREEN (classic) ─────────────────────────── -->
   <div id="done-screen" class="screen">
     <h2>🎉 All done!</h2>
     <div class="summary-grid done-summary-grid">
@@ -173,21 +236,85 @@
     </div>
     <div class="output-path" id="done-path"></div>
     <div class="done-actions">
-      <button class="btn-primary" id="sort-another-btn">Sort Another Folder →</button>
+      <button class="btn-primary"   id="sort-another-btn">Sort Another Folder →</button>
       <button class="btn-secondary" id="new-dataset-btn">New Dataset</button>
     </div>
   </div>
 
-  <!-- ── IMAGE LIGHTBOX ─────────────────────────────────── -->
+  <!-- ── REVIEW SETUP SCREEN ───────────────────────────── -->
+  <div id="review-setup-screen" class="screen">
+    <h2>Review Evaluations</h2>
+    <p class="muted-text">Load evaluator folders to compare answers image by image.</p>
+
+    <div class="input-group">
+      <label>Dataset Folder Path</label>
+      <div class="path-input-row">
+        <input id="review-folder-input" type="text"
+               placeholder="C:\Users\you\my-dataset"
+               autocomplete="off" spellcheck="false" />
+        <button class="btn-browse" id="review-browse-btn" type="button">Browse…</button>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="review-scan-btn">Scan for Evaluators →</button>
+
+    <div id="review-evaluators-section" style="display:none">
+      <div class="input-group" style="margin-top:16px">
+        <label>Evaluators found</label>
+        <div id="review-evaluators-list" class="evaluators-list"></div>
+      </div>
+      <button class="btn-primary" id="review-load-btn" disabled>Load Evaluations →</button>
+    </div>
+
+    <div class="error-msg" id="review-setup-error"></div>
+    <button class="btn-secondary" id="review-back-btn" style="margin-top:8px">← Back</button>
+  </div>
+
+  <!-- ── REVIEW SCREEN ─────────────────────────────────── -->
+  <div id="review-screen" class="screen">
+    <div class="top-bar">
+      <span class="progress-label top-label" id="review-image-counter">1 / 1</span>
+      <span class="top-label review-path-label" id="review-image-path"></span>
+    </div>
+
+    <div class="review-frame">
+      <img id="review-image" src="" alt="review image" />
+
+      <div class="review-panel">
+        <div class="review-evaluator-nav">
+          <button class="action-btn btn-nav" id="review-prev-evaluator-btn" title="Previous evaluator (↑)">‹</button>
+          <div class="review-evaluator-info">
+            <span class="review-evaluator-name" id="review-evaluator-label">—</span>
+            <span class="review-evaluator-counter" id="review-evaluator-counter">1 / 1</span>
+          </div>
+          <button class="action-btn btn-nav" id="review-next-evaluator-btn" title="Next evaluator (↓)">›</button>
+        </div>
+        <div id="review-answers-container" class="review-answers"></div>
+      </div>
+    </div>
+
+    <div class="rating-nav-bar">
+      <button class="action-btn btn-nav" id="review-prev-image-btn" title="Previous image (←)">‹</button>
+      <button class="action-btn btn-nav" id="review-next-image-btn" title="Next image (→)">›</button>
+    </div>
+
+    <div class="hint">←/→ Navigate images &nbsp;·&nbsp; ↑/↓ Switch evaluator &nbsp;·&nbsp; Tap image to zoom</div>
+
+    <div class="done-actions" style="margin-top:12px">
+      <button class="btn-secondary" id="review-new-btn">← New Review</button>
+    </div>
+  </div>
+
+  <!-- ── IMAGE LIGHTBOX ────────────────────────────────── -->
   <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Image zoom view">
     <div class="lightbox-backdrop"></div>
     <div class="lightbox-inner">
       <img id="lightbox-img" src="" alt="full view" draggable="false" />
     </div>
     <div class="lightbox-controls">
-      <button class="lightbox-btn" id="lb-zoom-out" title="Zoom out">−</button>
-      <span class="lightbox-zoom-label" id="lb-zoom-label">100%</span>
-      <button class="lightbox-btn" id="lb-zoom-in" title="Zoom in">+</button>
+      <button class="lightbox-btn" id="lb-zoom-out"   title="Zoom out">−</button>
+      <span   class="lightbox-zoom-label" id="lb-zoom-label">100%</span>
+      <button class="lightbox-btn" id="lb-zoom-in"    title="Zoom in">+</button>
       <button class="lightbox-btn" id="lb-zoom-reset" title="Reset zoom">↺</button>
       <button class="lightbox-btn lightbox-close" id="lb-close" title="Close (Esc)">✕</button>
     </div>

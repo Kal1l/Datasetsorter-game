@@ -1,25 +1,13 @@
-import csv
 import json
 import os
 from datetime import datetime
-from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
 
 from .common import collect_images, selected_images
+from .question_sets import load_question_set
 
-RATING_RESULTS_FILE = 'rating_results.csv'
 SESSION_FILE = '.dataset_game_rating_session.json'
-LIKERT_QUESTIONS = [
-    'match_description',
-    'originality',
-    'visual_discomfort',
-    'aesthetic_pleasing',
-]
-TERNARY_QUESTIONS = [
-    'clear_subject',   # 'yes' | 'no' | 'maybe'
-]
-ALL_QUESTIONS = LIKERT_QUESTIONS + TERNARY_QUESTIONS
 
 rating_bp = Blueprint('rating_mode', __name__)
 
@@ -28,7 +16,10 @@ state = {
     'current_index': 0,
     'base_folder': '',
     'selected_paths': [],
-    'answers': {},    # {str(idx): answer_dict}
+    'evaluator': '',
+    'question_set_name': '',
+    'question_set': None,       # full question set object { name, questions }
+    'answered_indices': set(),  # set of int indices already written to disk
 }
 
 
@@ -39,17 +30,18 @@ def session_path(folder):
 def save_session():
     if not state['base_folder']:
         return
-
     data = {
-        'folder': state['base_folder'],
-        'selected_paths': state['selected_paths'],
-        'images': state['images'],
-        'current_index': state['current_index'],
-        'answers': state['answers'],
+        'folder':            state['base_folder'],
+        'evaluator':         state['evaluator'],
+        'question_set_name': state['question_set_name'],
+        'selected_paths':    state['selected_paths'],
+        'images':            state['images'],
+        'current_index':     state['current_index'],
+        'answered_indices':  list(state['answered_indices']),
     }
     try:
-        with open(session_path(state['base_folder']), 'w', encoding='utf-8') as handle:
-            json.dump(data, handle)
+        with open(session_path(state['base_folder']), 'w', encoding='utf-8') as f:
+            json.dump(data, f)
     except OSError:
         pass
 
@@ -58,10 +50,9 @@ def load_session(folder):
     path = session_path(folder)
     if not os.path.isfile(path):
         return None
-
     try:
-        with open(path, 'r', encoding='utf-8') as handle:
-            data = json.load(handle)
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
         if 'images' not in data or 'current_index' not in data:
             return None
         return data
@@ -77,105 +68,95 @@ def delete_session(folder):
 
 
 def apply_state(data):
-    folder = data['folder']
-    state['images'] = data['images']
-    state['current_index'] = data['current_index']
-    state['base_folder'] = folder
-    state['selected_paths'] = data.get('selected_paths', [])
-    raw = data.get('answers', {})
-    # Migrate old list-based sessions to dict
+    state['images']            = data['images']
+    state['current_index']     = data['current_index']
+    state['base_folder']       = data['folder']
+    state['selected_paths']    = data.get('selected_paths', [])
+    state['evaluator']         = data.get('evaluator', '')
+    state['question_set_name'] = data.get('question_set_name', '')
+    state['question_set']      = load_question_set(state['question_set_name']) if state['question_set_name'] else None
+
+    # Migrate old format (dict of answers) to new format (list of indices)
+    raw = data.get('answered_indices', data.get('answers', {}))
     if isinstance(raw, list):
-        state['answers'] = {str(i): a for i, a in enumerate(raw)}
+        state['answered_indices'] = set(raw)
+    elif isinstance(raw, dict):
+        state['answered_indices'] = {int(k) for k in raw.keys()}
     else:
-        state['answers'] = raw
+        state['answered_indices'] = set()
 
 
 def session_info_for_folder(folder):
     session = load_session(folder)
     if not session:
         return None
-
     total = len(session['images'])
-    answers = session.get('answers', {})
-    answered = len(answers) if isinstance(answers, dict) else len(answers)
+    raw = session.get('answered_indices', session.get('answers', {}))
+    if isinstance(raw, (list, dict)):
+        answered = len(raw)
+    else:
+        answered = 0
     return {
-        'current_index': session['current_index'],
-        'total': total,
-        'answered': answered,
-        'selected_paths': session.get('selected_paths', []),
+        'current_index':    session['current_index'],
+        'total':            total,
+        'answered':         answered,
+        'selected_paths':   session.get('selected_paths', []),
+        'evaluator':        session.get('evaluator', ''),
+        'question_set_name': session.get('question_set_name', ''),
     }
 
 
-def _selected_images(folder, selected_paths):
-    return selected_images(folder, selected_paths)
-
-
-def _validate_responses(responses):
+def _validate_responses(responses, questions):
     if not isinstance(responses, dict):
         return 'Responses payload must be an object.'
-
-    for question in LIKERT_QUESTIONS:
-        value = responses.get(question)
-        if not isinstance(value, int) or value < 1 or value > 5:
-            return f'{question} must be an integer from 1 to 5.'
-
-    for question in TERNARY_QUESTIONS:
-        value = responses.get(question)
-        if value not in ('yes', 'no', 'maybe'):
-            return f'{question} must be "yes", "no", or "maybe".'
-
+    for q in questions:
+        value = responses.get(q['key'])
+        if q['type'] == 'likert':
+            mn, mx = q.get('min', 1), q.get('max', 5)
+            if not isinstance(value, int) or value < mn or value > mx:
+                return f'"{q["key"]}" must be an integer from {mn} to {mx}.'
+        elif q['type'] == 'ternary':
+            valid = [o.lower() for o in q.get('options', [])]
+            if value not in valid:
+                return f'"{q["key"]}" must be one of: {", ".join(valid)}.'
     return None
 
 
-def _write_results_csv():
-    if not state['base_folder']:
-        raise ValueError('No active rating session.')
+def _write_eval_file(idx, responses):
+    images = state['images']
+    base   = state['base_folder']
+    rel_image = os.path.relpath(images[idx], base)
 
-    # Always save into a dedicated results subfolder
-    results_dir = os.path.join(state['base_folder'], 'rating_results')
-    os.makedirs(results_dir, exist_ok=True)
+    eval_dir  = os.path.join(base, 'evaluations', state['evaluator'])
+    eval_path = os.path.normpath(os.path.join(eval_dir, rel_image + '.json'))
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    csv_path = os.path.join(results_dir, f'rating_results_{timestamp}.csv')
-    fieldnames = ['timestamp', 'scenario', 'image', *LIKERT_QUESTIONS, *TERNARY_QUESTIONS]
+    # Security: stay within the evaluator folder
+    norm_eval_dir = os.path.normpath(eval_dir)
+    if not eval_path.startswith(norm_eval_dir + os.sep):
+        raise ValueError('Invalid image path.')
 
-    with open(csv_path, 'w', encoding='utf-8', newline='') as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
-        writer.writeheader()
-        for key in sorted(state['answers'], key=lambda k: int(k)):
-            answer = state['answers'][key]
-            parts = Path(answer['image']).parts
-            scenario = parts[0] if len(parts) > 1 else '.'
-            row = {
-                'timestamp': datetime.now().isoformat(timespec='seconds'),
-                'scenario': scenario,
-                'image': answer['image'],
-            }
-            for question in LIKERT_QUESTIONS:
-                row[question] = answer.get(question, '')
-            for question in TERNARY_QUESTIONS:
-                row[question] = answer.get(question, '')
-            writer.writerow(row)
+    os.makedirs(os.path.dirname(eval_path), exist_ok=True)
 
-    return csv_path
+    payload = {
+        'image':        rel_image,
+        'evaluator':    state['evaluator'],
+        'question_set': state['question_set_name'],
+        'timestamp':    datetime.now().isoformat(timespec='seconds'),
+        'answers':      responses,
+    }
+    with open(eval_path, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
 
 
-def _session_average():
-    if not state['answers']:
-        return '0.0'
-    total_points = 0
-    count = len(state['answers'])
-    for answer in state['answers'].values():
-        for question in LIKERT_QUESTIONS:
-            total_points += answer.get(question, 0)
-    return f'{(total_points / (count * len(LIKERT_QUESTIONS))):.1f}'
-
+# ── Routes ────────────────────────────────────────────────
 
 @rating_bp.route('/api/rating/start', methods=['POST'])
 def start():
-    data = request.json or {}
-    folder = data.get('folder', '').strip()
-    selected_paths = data.get('selected_paths')
+    data              = request.json or {}
+    folder            = data.get('folder', '').strip()
+    selected_paths    = data.get('selected_paths')
+    evaluator         = (data.get('evaluator') or '').strip()
+    question_set_name = (data.get('question_set_name') or '').strip()
 
     if not folder or not os.path.isdir(folder):
         return jsonify({'error': 'Invalid or non-existent folder path.'}), 400
@@ -183,26 +164,43 @@ def start():
     session = load_session(folder)
     if session:
         apply_state(session)
+        if not state['question_set']:
+            delete_session(folder)
+            return jsonify({'error': 'Saved session references a missing question set. Start fresh.'}), 400
     else:
-        images = _selected_images(folder, selected_paths)
+        if not evaluator:
+            return jsonify({'error': 'Evaluator name is required.'}), 400
+        if not question_set_name:
+            return jsonify({'error': 'Question set name is required.'}), 400
+
+        qs = load_question_set(question_set_name)
+        if not qs:
+            return jsonify({'error': f'Question set "{question_set_name}" not found.'}), 404
+
+        images = selected_images(folder, selected_paths) if selected_paths else collect_images(folder)
         if not images:
             return jsonify({'error': 'No images found in the selected folders.'}), 400
 
-        state['images'] = images
-        state['current_index'] = 0
-        state['base_folder'] = folder
-        state['selected_paths'] = selected_paths or []
-        state['answers'] = {}
+        state['images']            = images
+        state['current_index']     = 0
+        state['base_folder']       = folder
+        state['selected_paths']    = selected_paths or []
+        state['evaluator']         = evaluator
+        state['question_set_name'] = question_set_name
+        state['question_set']      = qs
+        state['answered_indices']  = set()
         save_session()
 
     if not state['images']:
         return jsonify({'error': 'No images found in the selected folders.'}), 400
 
     return jsonify({
-        'total': len(state['images']),
-        'current': state['current_index'],
-        'answered': len(state['answers']),
-        'answers': state['answers'],
+        'total':            len(state['images']),
+        'current':          state['current_index'],
+        'answered':         len(state['answered_indices']),
+        'answered_indices': list(state['answered_indices']),
+        'question_set':     state['question_set'],
+        'evaluator':        state['evaluator'],
     })
 
 
@@ -211,58 +209,52 @@ def get_image(idx):
     images = state.get('images', [])
     if idx < 0 or idx >= len(images):
         return jsonify({'error': 'Index out of range'}), 404
-
     img_path = images[idx]
     if not os.path.isfile(img_path):
         return jsonify({'error': 'File not found'}), 404
-
     return send_file(img_path)
 
 
 @rating_bp.route('/api/rating/submit', methods=['POST'])
 def submit():
-    data = request.json or {}
-    idx = data.get('index')
+    data      = request.json or {}
+    idx       = data.get('index')
     responses = data.get('responses')
-    subjective = (data.get('subjective') or '').strip()
-
-    images = state.get('images', [])
+    images    = state.get('images', [])
 
     if idx is None or not isinstance(idx, int) or idx < 0 or idx >= len(images):
         return jsonify({'error': 'Invalid image index.'}), 400
 
-    validation_error = _validate_responses(responses)
-    if validation_error:
-        return jsonify({'error': validation_error}), 400
+    if not state.get('question_set'):
+        return jsonify({'error': 'No active question set in session.'}), 400
 
-    rel_image = os.path.relpath(images[idx], state['base_folder'])
-    answer = {'image': rel_image}
-    for question in ALL_QUESTIONS:
-        answer[question] = responses[question]
-    state['answers'][str(idx)] = answer
+    questions = state['question_set'].get('questions', [])
+    error = _validate_responses(responses, questions)
+    if error:
+        return jsonify({'error': error}), 400
 
+    try:
+        _write_eval_file(idx, responses)
+    except (OSError, ValueError) as exc:
+        return jsonify({'error': f'Could not write evaluation file: {exc}'}), 500
+
+    state['answered_indices'].add(idx)
     state['current_index'] = max(state['current_index'], idx + 1)
-    done = len(state['answers']) >= len(images)
+    done = len(state['answered_indices']) >= len(images)
 
     save_session()
 
-    csv_path = None
-    average = None
+    eval_folder = None
     if done:
-        try:
-            csv_path = _write_results_csv()
-            average = _session_average()
-            delete_session(state['base_folder'])
-        except OSError:
-            return jsonify({'error': 'Could not write CSV results.'}), 500
+        eval_folder = os.path.join(state['base_folder'], 'evaluations', state['evaluator'])
+        delete_session(state['base_folder'])
 
     return jsonify({
-        'done': done,
-        'next_index': state['current_index'],
-        'total': len(images),
-        'answered': len(state['answers']),
-        'csv_path': csv_path,
-        'average': average,
+        'done':        done,
+        'next_index':  state['current_index'],
+        'total':       len(images),
+        'answered':    len(state['answered_indices']),
+        'eval_folder': eval_folder,
     })
 
 

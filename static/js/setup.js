@@ -4,19 +4,28 @@ import { initLightbox }                              from './lightbox.js';
 import { startClassicGame, resumeClassicGame,
          initClassicListeners }                      from './classic.js';
 import { startRatingGame, initRatingListeners }      from './rating.js';
+import { showQuestionSets, initQuestionSetListeners } from './question_sets.js';
+import { showReviewSetup,  initReviewListeners }      from './review.js';
 
 // ── Initialise sub-modules ────────────────────────────────
 initLightbox();
 initClassicListeners();
 initRatingListeners();
+initQuestionSetListeners();
+initReviewListeners();
 
 // ── Shared app state ──────────────────────────────────────
-let selectedMode      = 'classic';
-let folderPath        = '';
-let subfolderData     = [];
-let selectedPaths     = new Set();
+let selectedMode       = 'classic';
+let folderPath         = '';
+let subfolderData      = [];
+let selectedPaths      = new Set();
 let pendingSessionInfo = null;
 let pendingSessionMode = null;
+
+// ── Rating config state ───────────────────────────────────
+let _pendingRatingFolder = '';
+let _pendingRatingPaths  = null;
+let _selectedQSName      = null;
 
 // ── Mode selector ─────────────────────────────────────────
 document.querySelectorAll('#mode-grid .mode-card').forEach(btn => {
@@ -27,7 +36,7 @@ document.querySelectorAll('#mode-grid .mode-card').forEach(btn => {
   });
 });
 
-// ── Browse folder ─────────────────────────────────────────
+// ── Browse folder (main) ──────────────────────────────────
 document.getElementById('browse-btn').addEventListener('click', async () => {
   document.getElementById('setup-error').textContent = '';
   try {
@@ -87,16 +96,24 @@ async function doScan() {
 }
 
 async function startMode(folder, selectedPathsList) {
-  if (selectedMode === 'rating') await startRatingGame(folder, selectedPathsList);
-  else await startClassicGame(folder, selectedPathsList);
+  if (selectedMode === 'rating') {
+    _pendingRatingFolder = folder;
+    _pendingRatingPaths  = selectedPathsList;
+    await _showRatingConfig();
+  } else {
+    await startClassicGame(folder, selectedPathsList);
+  }
 }
+
+// ── Review button ─────────────────────────────────────────
+document.getElementById('review-btn').addEventListener('click', () => showReviewSetup());
 
 // ── Resume screen ─────────────────────────────────────────
 function showResumeScreen(info, mode) {
   const isRating   = mode === 'rating';
   const totalCount = info.total || 0;
   const doneCount  = isRating
-    ? (info.answered || info.current_index || 0)
+    ? (info.answered || 0)
     : ((info.good_count || 0) + (info.bad_count || 0));
   const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
 
@@ -119,12 +136,24 @@ function showResumeScreen(info, mode) {
     document.getElementById('resume-bad').textContent  = String(totalCount);
     document.getElementById('resume-skip').textContent = String(Math.max(0, totalCount - doneCount));
     fl.textContent = 'Answered'; sl.textContent = 'Total'; tl.textContent = 'Remaining';
+
+    // Show evaluator/set info if available
+    const meta = document.getElementById('resume-rating-meta');
+    if (meta) {
+      const parts = [];
+      if (info.evaluator)        parts.push(`Evaluator: ${info.evaluator}`);
+      if (info.question_set_name) parts.push(`Set: ${info.question_set_name}`);
+      meta.textContent = parts.join('  ·  ');
+      meta.style.display = parts.length ? '' : 'none';
+    }
   } else {
-    document.getElementById('resume-good').textContent = info.good_count;
-    document.getElementById('resume-bad').textContent  = info.bad_count;
+    document.getElementById('resume-good').textContent = String(info.good_count || 0);
+    document.getElementById('resume-bad').textContent  = String(info.bad_count  || 0);
     document.getElementById('resume-skip').textContent =
       String(Math.max(0, totalCount - (info.good_count || 0) - (info.bad_count || 0)));
     fl.textContent = 'Good'; sl.textContent = 'Bad'; tl.textContent = 'Remaining';
+    const meta = document.getElementById('resume-rating-meta');
+    if (meta) meta.style.display = 'none';
   }
 
   document.getElementById('btn-resume').textContent = isRating
@@ -170,13 +199,13 @@ document.getElementById('btn-start-fresh').addEventListener('click', async () =>
 function buildSelectScreen(subfolders) {
   document.getElementById('select-folder-label').textContent = folderPath;
   document.getElementById('select-error').textContent = '';
-  selectedPaths = new Set();   // nothing pre-selected — user clicks to pick
+  selectedPaths = new Set();
 
   const grid = document.getElementById('folder-grid');
   grid.innerHTML = '';
   subfolders.forEach(sf => {
     const card = document.createElement('div');
-    card.className = 'folder-card';   // unselected by default
+    card.className   = 'folder-card';
     card.dataset.path = sf.path;
     card.innerHTML = `
       <div class="folder-icon">📁</div>
@@ -185,13 +214,8 @@ function buildSelectScreen(subfolders) {
       <div class="folder-check">✓</div>
     `;
     card.addEventListener('click', () => {
-      if (selectedPaths.has(sf.path)) {
-        selectedPaths.delete(sf.path);
-        card.classList.remove('selected');
-      } else {
-        selectedPaths.add(sf.path);
-        card.classList.add('selected');
-      }
+      if (selectedPaths.has(sf.path)) { selectedPaths.delete(sf.path); card.classList.remove('selected'); }
+      else                            { selectedPaths.add(sf.path);    card.classList.add('selected');    }
       updateStartBtn();
     });
     grid.appendChild(card);
@@ -207,7 +231,7 @@ function updateStartBtn() {
       return sum + (sf ? sf.count : 0);
     }, 0);
   const btn = document.getElementById('start-selected-btn');
-  btn.disabled  = selectedPaths.size === 0;
+  btn.disabled    = selectedPaths.size === 0;
   btn.textContent = selectedPaths.size === 0
     ? 'Select at least one folder'
     : `Start with ${count} image${count !== 1 ? 's' : ''} →`;
@@ -230,13 +254,92 @@ document.getElementById('start-selected-btn').addEventListener('click', async ()
   await startMode(folderPath, [...selectedPaths]);
 });
 
+// ── Rating config screen ──────────────────────────────────
+async function _showRatingConfig() {
+  document.getElementById('rating-config-folder-label').textContent = _pendingRatingFolder;
+  document.getElementById('rating-evaluator-input').value = '';
+  document.getElementById('rating-config-error').textContent = '';
+  _selectedQSName = null;
+  await _loadRatingQSList();
+  showScreen('rating-config-screen');
+}
+
+async function _loadRatingQSList() {
+  const container = document.getElementById('rating-qs-list');
+  container.innerHTML = '<p class="muted-text">Loading…</p>';
+  _selectedQSName = null;
+  _updateRatingStartBtn();
+  try {
+    const res  = await fetch('/api/question_sets');
+    const data = await res.json();
+    _renderRatingQSList(data.sets || []);
+  } catch {
+    container.innerHTML = '<p class="error-msg">Could not load question sets.</p>';
+  }
+}
+
+function _renderRatingQSList(sets) {
+  const container = document.getElementById('rating-qs-list');
+  container.innerHTML = '';
+  if (sets.length === 0) {
+    container.innerHTML = '<p class="muted-text">No question sets. Create one first.</p>';
+    return;
+  }
+  sets.forEach(set => {
+    const card = document.createElement('div');
+    card.className    = 'qs-select-card';
+    card.dataset.name = set.name;
+    card.innerHTML = `
+      <span class="qs-name">${escHtml(set.name)}</span>
+      <span class="qs-meta">${set.question_count} question${set.question_count !== 1 ? 's' : ''}</span>
+    `;
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.qs-select-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      _selectedQSName = set.name;
+      _updateRatingStartBtn();
+    });
+    container.appendChild(card);
+  });
+}
+
+function _updateRatingStartBtn() {
+  const evaluator = document.getElementById('rating-evaluator-input').value.trim();
+  document.getElementById('rating-config-start-btn').disabled = !evaluator || !_selectedQSName;
+}
+
+document.getElementById('rating-evaluator-input').addEventListener('input', _updateRatingStartBtn);
+
+document.getElementById('rating-manage-sets-btn').addEventListener('click', async () => {
+  await showQuestionSets('rating-config-screen', async () => {
+    await _loadRatingQSList();
+  });
+});
+
+document.getElementById('rating-config-start-btn').addEventListener('click', async () => {
+  const evaluator = document.getElementById('rating-evaluator-input').value.trim();
+  document.getElementById('rating-config-error').textContent = '';
+  if (!evaluator)      { document.getElementById('rating-config-error').textContent = 'Please enter your name.'; return; }
+  if (!_selectedQSName) { document.getElementById('rating-config-error').textContent = 'Please select a question set.'; return; }
+  await startRatingGame(_pendingRatingFolder, _pendingRatingPaths, evaluator, _selectedQSName);
+});
+
+document.getElementById('rating-config-back-btn').addEventListener('click', () => {
+  if (subfolderData.length > 0) {
+    buildSelectScreen(subfolderData);
+    showScreen('select-screen');
+  } else {
+    showScreen('setup-screen');
+  }
+});
+
 // ── Restart / navigation ──────────────────────────────────
 function resetToSetup() {
-  subfolderData  = [];
-  selectedPaths  = new Set();
+  subfolderData      = [];
+  selectedPaths      = new Set();
   pendingSessionInfo = null;
   pendingSessionMode = null;
-  folderPath     = '';
+  folderPath         = '';
   document.getElementById('folder-input').value = '';
   document.getElementById('setup-error').textContent = '';
   showScreen('setup-screen');
@@ -261,3 +364,12 @@ document.getElementById('new-dataset-btn').addEventListener('click', resetToSetu
 document.getElementById('rating-another-btn').addEventListener('click', goToSelectScreen);
 document.getElementById('rating-new-dataset-btn').addEventListener('click', resetToSetup);
 document.getElementById('change-dataset-btn').addEventListener('click', resetToSetup);
+document.getElementById('rating-exit-btn').addEventListener('click', () => {
+  if (!confirm('Exit the session? Your answered images are saved and you can resume later.')) return;
+  if (subfolderData.length > 0) {
+    buildSelectScreen(subfolderData);
+    showScreen('select-screen');
+  } else {
+    showScreen('setup-screen');
+  }
+});

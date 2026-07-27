@@ -6,10 +6,14 @@ from flask import Flask, jsonify, render_template, request
 from modes.classic_mode import classic_bp, session_info_for_folder as classic_session_info_for_folder
 from modes.common import IMAGE_EXTENSIONS, count_images
 from modes.rating_mode import rating_bp, session_info_for_folder as rating_session_info_for_folder
+from modes.question_sets import question_sets_bp
+from modes.review_mode import review_bp
 
 app = Flask(__name__)
 app.register_blueprint(classic_bp)
 app.register_blueprint(rating_bp)
+app.register_blueprint(question_sets_bp)
+app.register_blueprint(review_bp)
 
 @app.route('/')
 def index():
@@ -24,7 +28,7 @@ def scan():
     if not folder or not os.path.isdir(folder):
         return jsonify({'error': 'Invalid or non-existent folder path.'}), 400
 
-    skip_dirs = {'good', 'bad'}
+    skip_dirs = {'good', 'bad', 'evaluations'}
     subfolders = []
     for name in sorted(os.listdir(folder)):
         if name in skip_dirs:
