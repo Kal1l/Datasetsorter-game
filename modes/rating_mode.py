@@ -1,5 +1,7 @@
+import csv
 import json
 import os
+import re
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request, send_file
@@ -20,6 +22,7 @@ state = {
     'question_set_name': '',
     'question_set': None,       # full question set object { name, questions }
     'answered_indices': set(),  # set of int indices already written to disk
+    'csv_path': '',             # path to the session CSV file
 }
 
 
@@ -38,6 +41,7 @@ def save_session():
         'images':            state['images'],
         'current_index':     state['current_index'],
         'answered_indices':  list(state['answered_indices']),
+        'csv_path':          state['csv_path'],
     }
     try:
         with open(session_path(state['base_folder']), 'w', encoding='utf-8') as f:
@@ -75,6 +79,7 @@ def apply_state(data):
     state['evaluator']         = data.get('evaluator', '')
     state['question_set_name'] = data.get('question_set_name', '')
     state['question_set']      = load_question_set(state['question_set_name']) if state['question_set_name'] else None
+    state['csv_path']          = data.get('csv_path', '')
 
     # Migrate old format (dict of answers) to new format (list of indices)
     raw = data.get('answered_indices', data.get('answers', {}))
@@ -97,11 +102,11 @@ def session_info_for_folder(folder):
     else:
         answered = 0
     return {
-        'current_index':    session['current_index'],
-        'total':            total,
-        'answered':         answered,
-        'selected_paths':   session.get('selected_paths', []),
-        'evaluator':        session.get('evaluator', ''),
+        'current_index':     session['current_index'],
+        'total':             total,
+        'answered':          answered,
+        'selected_paths':    session.get('selected_paths', []),
+        'evaluator':         session.get('evaluator', ''),
         'question_set_name': session.get('question_set_name', ''),
     }
 
@@ -123,29 +128,42 @@ def _validate_responses(responses, questions):
 
 
 def _write_eval_file(idx, responses):
-    images = state['images']
-    base   = state['base_folder']
+    images    = state['images']
+    base      = state['base_folder']
     rel_image = os.path.relpath(images[idx], base)
+    csv_path  = state['csv_path']
 
-    eval_dir  = os.path.join(base, 'evaluations', state['evaluator'])
-    eval_path = os.path.normpath(os.path.join(eval_dir, rel_image + '.json'))
-
-    # Security: stay within the evaluator folder
+    # Security: csv_path must be within evaluations/<evaluator>/
+    eval_dir      = os.path.join(base, 'evaluations', state['evaluator'])
     norm_eval_dir = os.path.normpath(eval_dir)
-    if not eval_path.startswith(norm_eval_dir + os.sep):
-        raise ValueError('Invalid image path.')
+    if not os.path.normpath(csv_path).startswith(norm_eval_dir + os.sep):
+        raise ValueError('Invalid CSV path.')
 
-    os.makedirs(os.path.dirname(eval_path), exist_ok=True)
+    questions  = state['question_set'].get('questions', [])
+    fieldnames = ['image', 'evaluator', 'question_set', 'timestamp'] + [q['key'] for q in questions]
 
-    payload = {
+    # Read existing rows keyed by image to allow re-answering without duplicates
+    rows: dict[str, dict] = {}
+    if os.path.isfile(csv_path):
+        try:
+            with open(csv_path, 'r', newline='', encoding='utf-8') as f:
+                for r in csv.DictReader(f):
+                    rows[r.get('image', '')] = r
+        except (OSError, csv.Error):
+            pass
+
+    rows[rel_image] = {
         'image':        rel_image,
         'evaluator':    state['evaluator'],
         'question_set': state['question_set_name'],
         'timestamp':    datetime.now().isoformat(timespec='seconds'),
-        'answers':      responses,
+        **responses,
     }
-    with open(eval_path, 'w', encoding='utf-8') as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+
+    with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows.values())
 
 
 # ── Routes ────────────────────────────────────────────────
@@ -181,6 +199,11 @@ def start():
         if not images:
             return jsonify({'error': 'No images found in the selected folders.'}), 400
 
+        qs_slug  = re.sub(r'[^\w]', '_', question_set_name.strip())
+        ts       = datetime.now().strftime('%Y%m%d_%H%M%S')
+        eval_dir = os.path.join(folder, 'evaluations', evaluator)
+        os.makedirs(eval_dir, exist_ok=True)
+
         state['images']            = images
         state['current_index']     = 0
         state['base_folder']       = folder
@@ -189,6 +212,7 @@ def start():
         state['question_set_name'] = question_set_name
         state['question_set']      = qs
         state['answered_indices']  = set()
+        state['csv_path']          = os.path.join(eval_dir, f'{qs_slug}_{ts}.csv')
         save_session()
 
     if not state['images']:

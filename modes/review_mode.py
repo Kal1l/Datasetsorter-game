@@ -1,4 +1,5 @@
 import json
+import csv
 import os
 
 from flask import Blueprint, jsonify, request, send_file
@@ -42,7 +43,7 @@ def scan():
             continue
         count = sum(
             1 for _, _, files in os.walk(path)
-            for f in files if f.endswith('.json')
+            for f in files if f.endswith('.csv')
         )
         if count > 0:
             evaluators.append({'name': name, 'count': count})
@@ -73,22 +74,37 @@ def load():
             continue
         for root, _, files in os.walk(eval_folder):
             for fname in sorted(files):
-                if not fname.endswith('.json'):
+                if not fname.endswith('.csv'):
                     continue
                 fpath = os.path.join(root, fname)
                 if not _is_within(fpath, eval_folder):
                     continue
                 try:
-                    with open(fpath, 'r', encoding='utf-8') as f:
-                        eval_data = json.load(f)
-                except (OSError, json.JSONDecodeError):
+                    with open(fpath, 'r', newline='', encoding='utf-8') as f:
+                        for r in csv.DictReader(f):
+                            meta = {'image', 'evaluator', 'question_set', 'timestamp'}
+                            answers = {}
+                            for key, val in r.items():
+                                if key not in meta:
+                                    try:
+                                        answers[key] = int(val)
+                                    except (ValueError, TypeError):
+                                        answers[key] = val
+                            rel_image = r.get('image', '')
+                            if not rel_image:
+                                continue
+                            eval_data = {
+                                'image':        rel_image,
+                                'evaluator':    r.get('evaluator', evaluator),
+                                'question_set': r.get('question_set', ''),
+                                'timestamp':    r.get('timestamp', ''),
+                                'answers':      answers,
+                            }
+                            if rel_image not in image_map:
+                                image_map[rel_image] = {}
+                            image_map[rel_image][evaluator] = eval_data
+                except (OSError, csv.Error):
                     continue
-                rel_image = eval_data.get('image', '')
-                if not rel_image:
-                    continue
-                if rel_image not in image_map:
-                    image_map[rel_image] = {}
-                image_map[rel_image][evaluator] = eval_data
 
     images = sorted(image_map.keys())
     _state['base_folder'] = folder
