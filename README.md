@@ -94,7 +94,7 @@ Question sets are saved as JSON files in the `question_sets/` folder and can als
 ### 3. Rate Images
 
 The rating screen shows:
-- **Left** — the generation prompt (if a `metadata.json` exists in the image folder, see below)
+- **Left** — the scenario and generation prompt (if a `metadata.json` exists in the image folder, see below)
 - **Centre** — the image at full height
 - **Right** — the question set to answer
 - **Filmstrip** at the bottom — click any dot to jump to that image
@@ -110,7 +110,7 @@ Results are saved to:
 <your-folder>/evaluations/<evaluator>/<question_set_name>_<timestamp>.csv
 ```
 
-CSV columns: `image`, `evaluator`, `question_set`, `timestamp`, `prompt`, then one column per question key.
+CSV columns: `image`, `evaluator`, `question_set`, `timestamp`, `prompt`, `technique`, `scenario`, then one column per question key.
 
 ---
 
@@ -131,20 +131,32 @@ Compare answers from multiple evaluators image by image.
 
 ---
 
-## Optional: Generation Prompts (`metadata.json`)
+## Optional: Image Metadata (`metadata.json`)
 
-If your images were AI-generated, you can display the generation prompt alongside each image during rating and store it in the CSV output.
+If your images were AI-generated, you can attach metadata to each image for display during rating and storage in the CSV output.
 
 Create a `metadata.json` file inside each image subfolder:
 
 ```json
 {
-  "img1.jpg": { "prompt": "a cat sitting on a red sofa, photorealistic" },
-  "img2.jpg": { "prompt": "a dog running through a field, oil painting" }
+  "img1.jpg": {
+    "prompt": "a cat sitting on a red sofa, photorealistic",
+    "technique": "LoRA fine-tune",
+    "scenario": "indoor lighting test"
+  },
+  "img2.jpg": {
+    "prompt": "a dog running through a field, oil painting"
+  }
 }
 ```
 
-The prompt is shown to the left of the image during rating and saved in the `prompt` column of the CSV.
+| Field | Required | Description |
+|-------|----------|-------------|
+| `prompt` | No | Generation prompt shown during rating and saved to CSV |
+| `technique` | No | Generation technique/model variant — saved to CSV |
+| `scenario` | No | Evaluation scenario label — shown above the prompt during rating and saved to CSV |
+
+All three fields are optional. The `technique` and `scenario` fields are purely metadata: `scenario` is displayed above the prompt on the rating screen; `technique` is written only to the CSV.
 
 ---
 
