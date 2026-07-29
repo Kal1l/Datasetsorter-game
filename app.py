@@ -56,6 +56,7 @@ def scan():
     })
 @app.route('/api/browse', methods=['POST'])
 def browse_folder():
+    # Try tkinter first (requires Tcl/Tk)
     try:
         import tkinter as tk
         from tkinter import filedialog
@@ -64,6 +65,26 @@ def browse_folder():
         root.wm_attributes('-topmost', 1)
         folder = filedialog.askdirectory(title='Select Dataset Folder')
         root.destroy()
+        if folder:
+            return jsonify({'folder': os.path.normpath(folder)})
+        return jsonify({'folder': None})
+    except Exception:
+        pass
+
+    # Fallback: PowerShell FolderBrowserDialog (Windows, no extra dependencies)
+    try:
+        import subprocess
+        ps_script = (
+            'Add-Type -AssemblyName System.Windows.Forms;'
+            '$d = New-Object System.Windows.Forms.FolderBrowserDialog;'
+            '$d.Description = "Select Dataset Folder";'
+            'if ($d.ShowDialog() -eq "OK") { $d.SelectedPath }'
+        )
+        result = subprocess.run(
+            ['powershell', '-NoProfile', '-Command', ps_script],
+            capture_output=True, text=True, timeout=60,
+        )
+        folder = result.stdout.strip()
         if folder:
             return jsonify({'folder': os.path.normpath(folder)})
         return jsonify({'folder': None})

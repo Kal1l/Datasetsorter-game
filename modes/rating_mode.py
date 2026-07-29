@@ -6,7 +6,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request, send_file
 
-from .common import collect_images, selected_images, load_prompt_for_image
+from .common import collect_images, selected_images, load_prompt_for_image, load_metadata_for_image
 from .question_sets import load_question_set
 
 SESSION_FILE = '.dataset_game_rating_session.json'
@@ -132,7 +132,7 @@ def _write_eval_file(idx, responses):
     base      = state['base_folder']
     rel_image = os.path.relpath(images[idx], base)
     csv_path  = state['csv_path']
-    prompt    = load_prompt_for_image(images[idx])   # ← novo
+    meta = load_metadata_for_image(images[idx])
 
     eval_dir      = os.path.join(base, 'evaluations', state['evaluator'])
     norm_eval_dir = os.path.normpath(eval_dir)
@@ -141,7 +141,8 @@ def _write_eval_file(idx, responses):
 
     questions  = state['question_set'].get('questions', [])
     # prompt column added between timestamp and answers
-    fieldnames = ['image', 'evaluator', 'question_set', 'timestamp', 'prompt'] + [q['key'] for q in questions]
+    fieldnames = ['image', 'evaluator', 'question_set', 'timestamp',
+              'prompt', 'technique', 'scenario'] + [q['key'] for q in questions]
 
     rows: dict[str, dict] = {}
     if os.path.isfile(csv_path):
@@ -157,7 +158,9 @@ def _write_eval_file(idx, responses):
         'evaluator':    state['evaluator'],
         'question_set': state['question_set_name'],
         'timestamp':    datetime.now().isoformat(timespec='seconds'),
-        'prompt':       prompt,                      # ← novo
+        'prompt':       meta['prompt'],
+        'technique':   meta['technique'],
+        'scenario':    meta['scenario'],
         **responses,
     }
 

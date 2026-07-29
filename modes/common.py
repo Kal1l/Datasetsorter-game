@@ -45,18 +45,26 @@ def count_images(folder):
                 total += 1
     return total
 
-def load_prompt_for_image(img_abs_path: str) -> str:
-    """Read generation prompt from metadata.json in the same folder as the image."""
+def load_metadata_for_image(img_abs_path: str) -> dict:
+    """Return prompt, technique, and scenario from metadata.json."""
     folder    = os.path.dirname(img_abs_path)
     meta_path = os.path.join(folder, 'metadata.json')
+    result    = {'prompt': '', 'technique': '', 'scenario': ''}
     if not os.path.isfile(meta_path):
-        return ''
+        return result
     try:
         with open(meta_path, 'r', encoding='utf-8') as f:
             meta = json.load(f)
         entry = meta.get(os.path.basename(img_abs_path), {})
         if isinstance(entry, str):
-            return entry
-        return entry.get('prompt', '') if isinstance(entry, dict) else ''
+            result['prompt'] = entry
+        elif isinstance(entry, dict):
+            result['prompt']    = entry.get('prompt', '')
+            result['technique'] = entry.get('technique', '')
+            result['scenario']  = entry.get('scenario', '')
     except (OSError, json.JSONDecodeError):
-        return ''
+        pass
+    return result
+
+def load_prompt_for_image(img_abs_path: str) -> str:
+    return load_metadata_for_image(img_abs_path)['prompt']
