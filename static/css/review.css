@@ -1,0 +1,221 @@
+/* ── REVIEW SCREEN ───────────────────────────── */
+#review-screen {
+  width: 100%;
+  height: 100vh;
+  padding: 16px 20px 10px;
+  gap: 10px;
+  max-width: 1280px;
+}
+
+#review-screen .top-bar {
+  grid-template-columns: auto minmax(0,1fr);
+}
+
+.review-path-label {
+  font-size: 0.73rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.review-frame {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.review-image-col {
+  width: 50%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.review-image-col > img {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  object-position: top center;
+  border-radius: 10px;
+  cursor: zoom-in;
+  background: rgba(0,0,0,0.25);
+}
+
+.review-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+.review-panel::-webkit-scrollbar { width: 6px; }
+.review-panel::-webkit-scrollbar-track { background: transparent; }
+.review-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+.review-evaluator-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+
+.review-evaluator-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.review-evaluator-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.review-evaluator-counter {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* ── Evaluator checkboxes (review setup) ─────── */
+.evaluators-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.evaluator-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.evaluator-checkbox-row:hover { border-color: var(--accent); }
+
+.evaluator-checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.evaluator-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+/* ── Answer entries ──────────────────────────── */
+.review-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.review-meta {
+  display: flex;
+  gap: 14px;
+  font-size: 0.76rem;
+  color: var(--muted);
+  padding: 7px 10px;
+  background: var(--surface);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.review-answer-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.review-q-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.review-pip-row {
+  display: flex;
+  gap: 5px;
+}
+
+.review-pip {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.review-pip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  font-weight: 800;
+}
+
+.review-text-value {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+/* ── RESPONSIVE ──────────────────────────────── */
+@media (max-width: 768px) {
+  .review-frame {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .review-image-col {
+    width: 100%;
+    flex-shrink: 1;
+    max-height: 50vh;
+  }
+
+  .review-image-col > img {
+    max-height: 40vh;
+    flex: none;
+  }
+
+  .review-panel {
+    max-height: 40vh;
+  }
+}

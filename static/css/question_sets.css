@@ -1,0 +1,161 @@
+/* ── Question set list ───────────────────────── */
+.qs-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 45vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.qs-list::-webkit-scrollbar { width: 4px; }
+.qs-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+.qs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 14px;
+}
+
+.qs-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.qs-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qs-meta { font-size: 0.75rem; color: var(--muted); }
+
+.qs-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.qs-toolbar {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Question set editor ─────────────────────── */
+.qs-questions-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.qs-questions-list::-webkit-scrollbar { width: 4px; }
+.qs-questions-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+.qs-question-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qs-q-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.qs-q-number {
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.qs-q-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.qs-q-fields input,
+.qs-q-fields select {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.qs-q-fields input:focus,
+.qs-q-fields select:focus { border-color: var(--accent); }
+
+.qs-q-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.qs-q-row input,
+.qs-q-row select { flex: 1; }
+
+.qs-inline-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  min-width: 36px;
+}
+
+/* ── Question set selector (rating config) ───── */
+.qs-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.qs-select-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 35vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.qs-select-list::-webkit-scrollbar { width: 4px; }
+.qs-select-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+.qs-select-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.qs-select-card:hover { border-color: var(--accent); }
+.qs-select-card.selected {
+  border-color: var(--accent);
+  background: rgba(59,130,246,0.12);
+}
