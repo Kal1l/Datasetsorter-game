@@ -366,10 +366,5 @@ document.getElementById('rating-new-dataset-btn').addEventListener('click', rese
 document.getElementById('change-dataset-btn').addEventListener('click', resetToSetup);
 document.getElementById('rating-exit-btn').addEventListener('click', () => {
   if (!confirm('Exit the session? Your answered images are saved and you can resume later.')) return;
-  if (subfolderData.length > 0) {
-    buildSelectScreen(subfolderData);
-    showScreen('select-screen');
-  } else {
-    showScreen('setup-screen');
-  }
+  resetToSetup();
 });
