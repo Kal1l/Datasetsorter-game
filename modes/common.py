@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif'}
@@ -43,3 +44,19 @@ def count_images(folder):
             if Path(file_name).suffix.lower() in IMAGE_EXTENSIONS:
                 total += 1
     return total
+
+def load_prompt_for_image(img_abs_path: str) -> str:
+    """Read generation prompt from metadata.json in the same folder as the image."""
+    folder    = os.path.dirname(img_abs_path)
+    meta_path = os.path.join(folder, 'metadata.json')
+    if not os.path.isfile(meta_path):
+        return ''
+    try:
+        with open(meta_path, 'r', encoding='utf-8') as f:
+            meta = json.load(f)
+        entry = meta.get(os.path.basename(img_abs_path), {})
+        if isinstance(entry, str):
+            return entry
+        return entry.get('prompt', '') if isinstance(entry, dict) else ''
+    except (OSError, json.JSONDecodeError):
+        return ''

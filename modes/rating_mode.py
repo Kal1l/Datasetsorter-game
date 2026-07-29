@@ -6,7 +6,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, request, send_file
 
-from .common import collect_images, selected_images
+from .common import collect_images, selected_images, load_prompt_for_image
 from .question_sets import load_question_set
 
 SESSION_FILE = '.dataset_game_rating_session.json'
@@ -132,17 +132,17 @@ def _write_eval_file(idx, responses):
     base      = state['base_folder']
     rel_image = os.path.relpath(images[idx], base)
     csv_path  = state['csv_path']
+    prompt    = load_prompt_for_image(images[idx])   # ← novo
 
-    # Security: csv_path must be within evaluations/<evaluator>/
     eval_dir      = os.path.join(base, 'evaluations', state['evaluator'])
     norm_eval_dir = os.path.normpath(eval_dir)
     if not os.path.normpath(csv_path).startswith(norm_eval_dir + os.sep):
         raise ValueError('Invalid CSV path.')
 
     questions  = state['question_set'].get('questions', [])
-    fieldnames = ['image', 'evaluator', 'question_set', 'timestamp'] + [q['key'] for q in questions]
+    # prompt column added between timestamp and answers
+    fieldnames = ['image', 'evaluator', 'question_set', 'timestamp', 'prompt'] + [q['key'] for q in questions]
 
-    # Read existing rows keyed by image to allow re-answering without duplicates
     rows: dict[str, dict] = {}
     if os.path.isfile(csv_path):
         try:
@@ -157,6 +157,7 @@ def _write_eval_file(idx, responses):
         'evaluator':    state['evaluator'],
         'question_set': state['question_set_name'],
         'timestamp':    datetime.now().isoformat(timespec='seconds'),
+        'prompt':       prompt,                      # ← novo
         **responses,
     }
 
@@ -281,7 +282,6 @@ def submit():
         'eval_folder': eval_folder,
     })
 
-
 @rating_bp.route('/api/rating/discard_session', methods=['POST'])
 def discard_session():
     data = request.json or {}
@@ -289,3 +289,10 @@ def discard_session():
     if folder:
         delete_session(folder)
     return jsonify({'ok': True})
+
+@rating_bp.route('/api/rating/prompt/<int:idx>')
+def get_prompt(idx):
+    images = state.get('images', [])
+    if idx < 0 or idx >= len(images):
+        return jsonify({'prompt': ''})
+    return jsonify({'prompt': load_prompt_for_image(images[idx])})

@@ -5,6 +5,7 @@ import os
 from flask import Blueprint, jsonify, request, send_file
 
 from .question_sets import load_question_set
+from .common import load_prompt_for_image
 
 review_bp = Blueprint('review_mode', __name__)
 
@@ -142,13 +143,13 @@ def get_entry(idx):
     if idx < 0 or idx >= len(images):
         return jsonify({'error': 'Index out of range.'}), 404
 
-    rel_path   = images[idx]
-    raw_evals  = _state['image_map'].get(rel_path, {})
+    rel_path  = images[idx]
+    abs_path  = os.path.normpath(os.path.join(_state['base_folder'], rel_path))
+    raw_evals = _state['image_map'].get(rel_path, {})
 
-    # Enrich each evaluation with question definitions from the stored set
     enriched: dict[str, dict] = {}
     for evaluator, eval_data in raw_evals.items():
-        entry = dict(eval_data)
+        entry   = dict(eval_data)
         qs_name = entry.get('question_set', '')
         if qs_name and 'questions' not in entry:
             qs = load_question_set(qs_name)
@@ -156,10 +157,13 @@ def get_entry(idx):
                 entry['questions'] = qs.get('questions', [])
         enriched[evaluator] = entry
 
+    prompt = load_prompt_for_image(abs_path) if os.path.isfile(abs_path) else ''
+
     return jsonify({
-        'index': idx,
-        'image': rel_path,
-        'total': len(images),
-        'evaluations': enriched,
+        'index':                idx,
+        'image':                rel_path,
+        'total':                len(images),
+        'prompt':               prompt,            # ← novo
+        'evaluations':          enriched,
         'evaluators_with_data': list(enriched.keys()),
     })

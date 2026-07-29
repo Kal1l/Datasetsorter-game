@@ -7,8 +7,8 @@ let _folder              = '';
 let _reviewTotal         = 0;
 let _reviewIndex         = 0;
 let _evaluatorIndex      = 0;
-let _currentEvaluator    = null;   // name — preserved across image navigation
-let _currentEntry        = null;   // response from /api/review/entry/<idx>
+let _currentEvaluator    = null;
+let _currentEntry        = null;
 
 // ── Setup screen ──────────────────────────────────────────
 export function showReviewSetup() {
@@ -106,10 +106,9 @@ async function _loadEntry(imageIdx) {
     const data = await res.json();
     if (!res.ok) return;
     _currentEntry = data;
-    // Preserve current evaluator across image navigation when possible
     const available = data.evaluators_with_data || [];
     const savedIdx  = _currentEvaluator ? available.indexOf(_currentEvaluator) : -1;
-    _evaluatorIndex  = savedIdx >= 0 ? savedIdx : 0;
+    _evaluatorIndex   = savedIdx >= 0 ? savedIdx : 0;
     _currentEvaluator = available[_evaluatorIndex] ?? null;
     _render();
   } catch { /* silently skip */ }
@@ -117,11 +116,15 @@ async function _loadEntry(imageIdx) {
 
 function _render() {
   if (!_currentEntry) return;
-  const { image, evaluations, evaluators_with_data: available } = _currentEntry;
+  const { image, evaluations, evaluators_with_data: available, prompt } = _currentEntry;
 
   // Image info
   document.getElementById('review-image-path').textContent    = image;
   document.getElementById('review-image-counter').textContent = `${_reviewIndex + 1} / ${_reviewTotal}`;
+
+  // Prompt
+  const promptEl = document.getElementById('review-prompt');
+  if (promptEl) promptEl.textContent = prompt || '';
 
   // Evaluator info
   const evaluatorName = available[_evaluatorIndex] ?? null;
@@ -148,7 +151,6 @@ function _render() {
   const questions = evalData?.questions  ?? [];
   const answers   = evalData?.answers    ?? {};
 
-  // Metadata row
   const meta = document.createElement('div');
   meta.className = 'review-meta';
   meta.innerHTML =
@@ -178,7 +180,6 @@ function _render() {
       container.appendChild(row);
     });
   } else {
-    // Fallback: render raw key/value pairs
     Object.entries(answers).forEach(([key, val]) => {
       const row = document.createElement('div');
       row.className = 'review-answer-row';
@@ -192,7 +193,6 @@ function _render() {
 
 // ── Event wiring ──────────────────────────────────────────
 export function initReviewListeners() {
-  // Setup: browse
   document.getElementById('review-browse-btn').addEventListener('click', async () => {
     try {
       const res  = await fetch('/api/browse', { method: 'POST' });
@@ -201,19 +201,15 @@ export function initReviewListeners() {
     } catch { /* ignore */ }
   });
 
-  // Setup: scan
   document.getElementById('review-scan-btn').addEventListener('click', _scanFolder);
   document.getElementById('review-folder-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') _scanFolder();
   });
 
-  // Setup: load
   document.getElementById('review-load-btn').addEventListener('click', _loadReview);
 
-  // Setup: back to main setup
   document.getElementById('review-back-btn').addEventListener('click', () => showScreen('setup-screen'));
 
-  // Review: image navigation
   document.getElementById('review-prev-image-btn').addEventListener('click', () => {
     if (_reviewIndex > 0) _loadEntry(_reviewIndex - 1);
   });
@@ -221,7 +217,6 @@ export function initReviewListeners() {
     if (_reviewIndex < _reviewTotal - 1) _loadEntry(_reviewIndex + 1);
   });
 
-  // Review: evaluator navigation
   document.getElementById('review-prev-evaluator-btn').addEventListener('click', () => {
     if (_evaluatorIndex > 0) {
       _evaluatorIndex--;
@@ -238,16 +233,13 @@ export function initReviewListeners() {
     }
   });
 
-  // Review: lightbox
   document.getElementById('review-image').addEventListener('click', () => {
     const src = document.getElementById('review-image').src;
     if (src) openLightbox(src);
   });
 
-  // Review: done
   document.getElementById('review-new-btn').addEventListener('click', () => showScreen('setup-screen'));
 
-  // Keyboard: ←/→ = image, ↑/↓ = evaluator
   document.addEventListener('keydown', e => {
     if (!document.getElementById('review-screen').classList.contains('active')) return;
     const available = _currentEntry?.evaluators_with_data ?? [];

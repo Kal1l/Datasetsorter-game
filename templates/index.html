@@ -187,24 +187,20 @@
     </div>
 
     <div class="rating-nav-bar">
-      <button class="action-btn btn-nav" id="rating-btn-prev" title="Previous (↑)">‹</button>
-      <button class="btn-sm"             id="rating-exit-btn">Exit</button>
-      <button class="action-btn btn-nav" id="rating-btn-next" title="Next (↓)">›</button>
+      <button class="btn-sm" id="rating-exit-btn">Exit</button>
     </div>
 
     <div class="rating-frame">
-      <img id="rating-image" src="" alt="rating question image" />
+      <div class="rating-image-col">
+        <div id="rating-prompt" class="prompt-box"></div>
+        <img id="rating-image" src="" alt="rating question image" />
+      </div>
       <div class="rating-content">
         <div class="likert-legend">Select the best option for each question below.</div>
         <div class="likert-list" id="likert-list"></div>
         <div class="error-msg" id="rating-error"></div>
         <button class="btn-primary" id="rating-next-btn" disabled>Submit answer →</button>
       </div>
-    </div>
-
-    <div class="rating-nav-bar">
-      <button class="action-btn btn-nav" id="rating-btn-prev" title="Previous (↑)">‹</button>
-      <button class="action-btn btn-nav" id="rating-btn-next" title="Next (↓)">›</button>
     </div>
 
     <div class="filmstrip-wrap">
@@ -278,7 +274,10 @@
     </div>
 
     <div class="review-frame">
-      <img id="review-image" src="" alt="review image" />
+      <div class="review-image-col">
+        <div id="review-prompt" class="prompt-box"></div>
+        <img id="review-image" src="" alt="review image" />
+      </div>
 
       <div class="review-panel">
         <div class="review-evaluator-nav">
