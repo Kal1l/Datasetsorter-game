@@ -112,7 +112,9 @@ async function loadQuestion(idx) {
   document.getElementById('rating-error').textContent = '';
   document.getElementById('rating-image').src = `/api/rating/image/${idx}?s=${_gameToken}`;
   document.getElementById('rating-prompt').textContent = '';
-  ratingResponses = {};
+  document.getElementById('rating-scenario').textContent = '';
+  const saved = ratingAnswers[String(idx)];
+  ratingResponses = (saved && typeof saved === 'object') ? { ...saved } : {};
   updateChoiceUI();
   const content = document.querySelector('.rating-content');
   if (content) content.scrollTop = 0;
@@ -121,9 +123,10 @@ async function loadQuestion(idx) {
     const res = await fetch(`/api/rating/prompt/${idx}?s=${_gameToken}`);
     if (res.ok) {
       const data = await res.json();
-      document.getElementById('rating-prompt').textContent = data.prompt || '';
+      document.getElementById('rating-prompt').textContent   = data.prompt   || '';
+      document.getElementById('rating-scenario').textContent = data.scenario || '';
     }
-  } catch { /* prompt unavailable, leave empty */ }
+  } catch { /* metadata unavailable, leave empty */ }
 }
 
 // ── Answer submission ─────────────────────────────────────
@@ -149,7 +152,7 @@ async function submitAnswer() {
       return;
     }
 
-    ratingAnswers[String(ratingIndex)] = true;
+    ratingAnswers[String(ratingIndex)] = { ...ratingResponses };
 
     if (data.done) {
       document.getElementById('rating-done-path').innerHTML =

@@ -297,5 +297,5 @@ def discard_session():
 def get_prompt(idx):
     images = state.get('images', [])
     if idx < 0 or idx >= len(images):
-        return jsonify({'prompt': ''})
-    return jsonify({'prompt': load_prompt_for_image(images[idx])})
+        return jsonify({'prompt': '', 'scenario': '', 'technique': ''})
+    return jsonify(load_metadata_for_image(images[idx]))

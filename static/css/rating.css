@@ -62,10 +62,51 @@
   top: 0;
 }
 
-.rating-image-col .prompt-box {
+.rating-meta-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   width: 130px;
   flex-shrink: 0;
   max-height: calc(100vh - 290px);
+  overflow-y: auto;
+}
+
+.rating-meta-col .scenario-box:not(:empty)::before {
+  content: 'SCENARIO';
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rating-meta-col .scenario-box {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.5;
+  max-height: 90px;
+  overflow-y: auto;
+  word-break: break-word;
+  flex-shrink: 0;
+}
+.rating-meta-col .scenario-box:empty { display: none; }
+
+.rating-meta-col .scenario-box::-webkit-scrollbar { width: 4px; }
+.rating-meta-col .scenario-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+.rating-meta-col .prompt-box {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
 }
 
 .rating-image-col img {
@@ -203,4 +244,8 @@
     max-height: 40vh;
     height: auto;
   }
+  .rating-meta-col {
+  width: 100%;
+  max-height: none;
+}
 }
