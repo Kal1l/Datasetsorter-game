@@ -182,3 +182,6 @@ cython_debug/
 
 # Question sets (local configuration)
 question_sets/
+
+# Evaluation results (local configuration)
+/evaluations
