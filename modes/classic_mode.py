@@ -24,10 +24,12 @@ state = {
 
 
 def session_path(folder):
+    """Return the session file path for a dataset folder."""
     return os.path.join(folder, SESSION_FILE)
 
 
 def save_session():
+    """Persist in-memory state for classic mode resume."""
     if not state['base_folder']:
         return
     data = {
@@ -47,6 +49,7 @@ def save_session():
 
 
 def load_session(folder):
+    """Load a classic mode session from disk if available."""
     path = session_path(folder)
     if not os.path.isfile(path):
         return None
@@ -61,6 +64,7 @@ def load_session(folder):
 
 
 def delete_session(folder):
+    """Delete the saved classic mode session file, if present."""
     try:
         os.remove(session_path(folder))
     except OSError:
@@ -68,6 +72,7 @@ def delete_session(folder):
 
 
 def apply_state(data):
+    """Apply loaded session data to the in-memory runtime state."""
     folder = data['folder']
     state['images'] = data['images']
     state['current_index'] = data['current_index']
@@ -83,6 +88,7 @@ def apply_state(data):
 
 
 def session_info_for_folder(folder):
+    """Return lightweight session status used by the setup screen."""
     session = load_session(folder)
     if not session:
         return None
@@ -100,6 +106,7 @@ def session_info_for_folder(folder):
 
 @classic_bp.route('/api/classic/resume', methods=['POST'])
 def resume():
+    """Resume a previously saved classic sorting session."""
     data = request.json or {}
     folder = data.get('folder', '').strip()
 
@@ -123,6 +130,7 @@ def resume():
 
 @classic_bp.route('/api/classic/start', methods=['POST'])
 def start():
+    """Initialize a new classic sorting session for selected images."""
     data = request.json or {}
     folder = data.get('folder', '').strip()
     selected_paths = data.get('selected_paths')
@@ -156,6 +164,7 @@ def start():
 
 @classic_bp.route('/api/classic/image/<int:idx>')
 def get_image(idx):
+    """Serve one image by index from the active classic session."""
     images = state.get('images', [])
     if idx < 0 or idx >= len(images):
         return jsonify({'error': 'Index out of range'}), 404
@@ -169,6 +178,7 @@ def get_image(idx):
 
 @classic_bp.route('/api/classic/action', methods=['POST'])
 def action():
+    """Apply a good/bad judgment and update progress counters."""
     data = request.json or {}
     direction = data.get('direction')
     idx = data.get('index')
@@ -232,6 +242,7 @@ def action():
 
 @classic_bp.route('/api/classic/discard_session', methods=['POST'])
 def discard_session():
+    """Discard a saved classic mode session for a folder."""
     data = request.json or {}
     folder = data.get('folder', '').strip()
     if folder:

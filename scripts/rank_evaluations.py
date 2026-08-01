@@ -18,13 +18,14 @@ from pathlib import Path
 from statistics import mean
 from typing import Dict, Iterable, List, Optional
 
-
+# Constants for field names
 NUMERIC_FIELDS = (
     "match_description",
     "originality",
     "aesthetic_appeal",
 )
 
+# Aliases for visual discomfort field names
 VISUAL_DISCOMFORT_ALIASES = (
     "visual_discomfort",
     "visual_descomfort",
@@ -32,6 +33,11 @@ VISUAL_DISCOMFORT_ALIASES = (
 
 
 def to_float(value: object) -> Optional[float]:
+    """Convert a value to float, returning None for blank or invalid values.
+    
+    Args:
+        value (object): The input value to convert, which can be any type.
+    """
     if value is None:
         return None
     text = str(value).strip()
@@ -44,18 +50,36 @@ def to_float(value: object) -> Optional[float]:
 
 
 def format_float(value: Optional[float], decimals: int = 4) -> str:
+    """Format a float with fixed decimals, or return an empty string for None.
+    
+    Args:
+        value (Optional[float]): The float value to format.
+        decimals (int): Number of decimal places to format to (default: 4).
+    """
     if value is None:
         return ""
     return f"{value:.{decimals}f}"
 
 
 def invert_visual_discomfort(value: Optional[float], scale_min: float = 1.0, scale_max: float = 5.0) -> Optional[float]:
+    """Invert discomfort score on a fixed scale so higher always means better.
+    
+    Args:
+        value (Optional[float]): The original discomfort score to invert.
+        scale_min (float): The minimum value of the scale (default: 1.0).
+        scale_max (float): The maximum value of the scale (default: 5.0).
+    """
     if value is None:
         return None
     return scale_max + scale_min - value
 
 
 def normalize_subject_clarity(value: object) -> Optional[str]:
+    """Normalize subject_clarity answers to yes/no when possible.
+    
+    Args:
+        value (object): The input value to normalize, which can be any type.
+    """
     text = (str(value).strip().lower() if value is not None else "")
     if text == "yes":
         return "yes"
@@ -65,7 +89,13 @@ def normalize_subject_clarity(value: object) -> Optional[str]:
 
 
 def collect_input_files(evaluations_dir: Path) -> List[Path]:
+    """Collect input CSV files while skipping previously generated ranking outputs.
+    
+    Args:
+        evaluations_dir (Path): Directory containing evaluation CSV files.
+    """
     files = sorted(evaluations_dir.glob("*.csv"))
+    # Skip generated ranking files so reruns never re-ingest previous outputs.
     excluded_prefixes = ("ranking_", "rank_")
     return [
         path
@@ -75,6 +105,12 @@ def collect_input_files(evaluations_dir: Path) -> List[Path]:
 
 
 def read_rows(csv_path: Path) -> Iterable[Dict[str, str]]:
+    """Read rows from one CSV file and attach its source filename.
+    
+    Args:
+        csv_path (Path): Path to the CSV file to read.
+    """
+    # utf-8-sig transparently handles files with or without a BOM.
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
@@ -83,12 +119,18 @@ def read_rows(csv_path: Path) -> Iterable[Dict[str, str]]:
 
 
 def compute_row_scores(row: Dict[str, str]) -> Dict[str, Optional[float]]:
+    """Compute normalized numeric scores for a single evaluation row.
+    
+    Args:
+        row (Dict[str, str]): A dictionary representing a single evaluation row.
+    """
     values: Dict[str, Optional[float]] = {}
 
     for field in NUMERIC_FIELDS:
         values[field] = to_float(row.get(field))
 
     visual_value: Optional[float] = None
+    # Accept both spellings and keep the first valid numeric value found.
     for alias in VISUAL_DISCOMFORT_ALIASES:
         candidate = to_float(row.get(alias))
         if candidate is not None:
@@ -105,12 +147,19 @@ def compute_row_scores(row: Dict[str, str]) -> Dict[str, Optional[float]]:
         values["visual_score_inverted"],
     ]
     valid_components = [x for x in final_components if x is not None]
+    # Final score is computed only for ranking, even if it is not exported.
     values["final_score"] = mean(valid_components) if valid_components else None
 
     return values
 
 
 def aggregate_by_key(rows: List[Dict[str, str]], key_field: str) -> List[Dict[str, object]]:
+    """Aggregate scores by image or technique and sort by final score descending.
+    
+    Args:
+        rows (List[Dict[str, str]]): List of evaluation rows.
+        key_field (str): The field name to group by (e.g., "image" or "technique").
+    """
     groups: Dict[str, Dict[str, object]] = defaultdict(lambda: {
         "samples": 0,
         "match_description": [],
@@ -161,6 +210,7 @@ def aggregate_by_key(rows: List[Dict[str, str]], key_field: str) -> List[Dict[st
         elif subject_no > subject_yes:
             subject_majority = "no"
         else:
+            # Tie also covers the case where neither yes nor no was provided.
             subject_majority = "tie"
 
         entry = {
@@ -179,6 +229,7 @@ def aggregate_by_key(rows: List[Dict[str, str]], key_field: str) -> List[Dict[st
         ranking.append(entry)
 
     ranking.sort(
+        # Sort by hidden final score and then by sample size to break ties.
         key=lambda item: (
             item["mean_final_score"] if item["mean_final_score"] is not None else float("-inf"),
             item["samples"],
@@ -188,7 +239,20 @@ def aggregate_by_key(rows: List[Dict[str, str]], key_field: str) -> List[Dict[st
     return ranking
 
 
-def write_ranking_csv(output_path: Path, rows: List[Dict[str, object]], id_field: str, include_subject_majority: bool = False) -> None:
+def write_ranking_csv(
+    output_path: Path,
+    rows: List[Dict[str, object]],
+    id_field: str,
+    include_subject_majority: bool = False
+) -> None:
+    """Write aggregated ranking rows to CSV with optional subject clarity majority columns.
+    
+    Args:
+        output_path (Path): Path to the output CSV file.
+        rows (List[Dict[str, object]]): List of aggregated ranking rows.
+        id_field (str): The field name used as the identifier (e.g., "image" or "technique").
+        include_subject_majority (bool): Whether to include subject clarity majority columns in the output.
+    """
     fieldnames = [
         id_field,
         "samples",
@@ -224,6 +288,7 @@ def write_ranking_csv(output_path: Path, rows: List[Dict[str, object]], id_field
 
 
 def main() -> int:
+    """Parse arguments, generate rankings, and write output CSV files."""
     parser = argparse.ArgumentParser(description="Generate rankings from evaluations CSV files.")
     parser.add_argument(
         "--evaluations-dir",

@@ -27,10 +27,12 @@ state = {
 
 
 def session_path(folder):
+    """Return the rating session file path for a dataset folder."""
     return os.path.join(folder, SESSION_FILE)
 
 
 def save_session():
+    """Persist current rating state so users can resume later."""
     if not state['base_folder']:
         return
     data = {
@@ -51,6 +53,7 @@ def save_session():
 
 
 def load_session(folder):
+    """Load rating session data from disk if available and valid."""
     path = session_path(folder)
     if not os.path.isfile(path):
         return None
@@ -65,6 +68,7 @@ def load_session(folder):
 
 
 def delete_session(folder):
+    """Delete the saved rating session file, if present."""
     try:
         os.remove(session_path(folder))
     except OSError:
@@ -72,6 +76,7 @@ def delete_session(folder):
 
 
 def apply_state(data):
+    """Apply stored rating session data to in-memory state."""
     state['images']            = data['images']
     state['current_index']     = data['current_index']
     state['base_folder']       = data['folder']
@@ -92,6 +97,7 @@ def apply_state(data):
 
 
 def session_info_for_folder(folder):
+    """Return compact rating session info for pre-start checks."""
     session = load_session(folder)
     if not session:
         return None
@@ -112,6 +118,7 @@ def session_info_for_folder(folder):
 
 
 def _validate_responses(responses, questions):
+    """Validate responses payload against question set definitions."""
     if not isinstance(responses, dict):
         return 'Responses payload must be an object.'
     for q in questions:
@@ -128,6 +135,7 @@ def _validate_responses(responses, questions):
 
 
 def _write_eval_file(idx, responses):
+    """Upsert one image evaluation row in the active CSV file."""
     images    = state['images']
     base      = state['base_folder']
     rel_image = os.path.relpath(images[idx], base)
@@ -136,6 +144,7 @@ def _write_eval_file(idx, responses):
 
     eval_dir      = os.path.join(base, 'evaluations', state['evaluator'])
     norm_eval_dir = os.path.normpath(eval_dir)
+    # Ensure csv_path cannot escape the evaluator output directory.
     if not os.path.normpath(csv_path).startswith(norm_eval_dir + os.sep):
         raise ValueError('Invalid CSV path.')
 
@@ -174,6 +183,7 @@ def _write_eval_file(idx, responses):
 
 @rating_bp.route('/api/rating/start', methods=['POST'])
 def start():
+    """Start or resume a rating session and return initial client state."""
     data              = request.json or {}
     folder            = data.get('folder', '').strip()
     selected_paths    = data.get('selected_paths')
@@ -234,6 +244,7 @@ def start():
 
 @rating_bp.route('/api/rating/image/<int:idx>')
 def get_image(idx):
+    """Serve one image by index from the active rating session."""
     images = state.get('images', [])
     if idx < 0 or idx >= len(images):
         return jsonify({'error': 'Index out of range'}), 404
@@ -245,6 +256,7 @@ def get_image(idx):
 
 @rating_bp.route('/api/rating/submit', methods=['POST'])
 def submit():
+    """Validate and persist one submitted response payload."""
     data      = request.json or {}
     idx       = data.get('index')
     responses = data.get('responses')
@@ -287,6 +299,7 @@ def submit():
 
 @rating_bp.route('/api/rating/discard_session', methods=['POST'])
 def discard_session():
+    """Discard a saved rating session for a folder."""
     data = request.json or {}
     folder = data.get('folder', '').strip()
     if folder:
@@ -295,6 +308,7 @@ def discard_session():
 
 @rating_bp.route('/api/rating/prompt/<int:idx>')
 def get_prompt(idx):
+    """Return prompt metadata for one image index."""
     images = state.get('images', [])
     if idx < 0 or idx >= len(images):
         return jsonify({'prompt': '', 'scenario': '', 'technique': ''})

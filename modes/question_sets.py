@@ -13,14 +13,17 @@ question_sets_bp = Blueprint('question_sets', __name__)
 
 
 def _ensure_dir():
+    """Ensure the question sets directory exists."""
     os.makedirs(QUESTION_SETS_DIR, exist_ok=True)
 
 
 def _safe_filename(name: str) -> str:
+    """Convert a display name into a filesystem-safe filename stem."""
     return re.sub(r'[^\w\-]', '_', name.strip()).strip('_') or 'unnamed'
 
 
 def _set_path(name: str) -> str:
+    """Return the absolute JSON path for a question set name."""
     return os.path.join(QUESTION_SETS_DIR, f'{_safe_filename(name)}.json')
 
 
@@ -37,6 +40,7 @@ def load_question_set(name: str) -> dict | None:
 
 
 def _validate(data: dict) -> str | None:
+    """Validate the question set payload and return an error message or None."""
     if not isinstance(data.get('name'), str) or not data['name'].strip():
         return 'Question set must have a non-empty name.'
     questions = data.get('questions')
@@ -71,6 +75,7 @@ def _validate(data: dict) -> str | None:
 
 @question_sets_bp.route('/api/question_sets', methods=['GET'])
 def list_sets():
+    """List available question sets with lightweight metadata."""
     _ensure_dir()
     sets = []
     for fname in sorted(os.listdir(QUESTION_SETS_DIR)):
@@ -92,6 +97,7 @@ def list_sets():
 
 @question_sets_bp.route('/api/question_sets/import', methods=['POST'])
 def import_set():
+    """Import a question set from an uploaded JSON file."""
     _ensure_dir()
     file = request.files.get('file')
     if not file:
@@ -116,6 +122,7 @@ def import_set():
 
 @question_sets_bp.route('/api/question_sets/<name>', methods=['GET'])
 def get_set(name):
+    """Return one question set by name."""
     data = load_question_set(name)
     if data is None:
         return jsonify({'error': 'Question set not found.'}), 404
@@ -124,6 +131,7 @@ def get_set(name):
 
 @question_sets_bp.route('/api/question_sets/<name>/export')
 def export_set(name):
+    """Export one question set as a downloadable JSON file."""
     path = _set_path(name)
     if not os.path.isfile(path):
         return jsonify({'error': 'Question set not found.'}), 404
@@ -137,6 +145,7 @@ def export_set(name):
 
 @question_sets_bp.route('/api/question_sets', methods=['POST'])
 def create_set():
+    """Create a new question set from request JSON."""
     _ensure_dir()
     data = request.json or {}
     error = _validate(data)
@@ -158,6 +167,7 @@ def create_set():
 
 @question_sets_bp.route('/api/question_sets/<name>', methods=['PUT'])
 def update_set(name):
+    """Update an existing question set, including optional rename."""
     _ensure_dir()
     data = request.json or {}
     error = _validate(data)
@@ -189,6 +199,7 @@ def update_set(name):
 
 @question_sets_bp.route('/api/question_sets/<name>', methods=['DELETE'])
 def delete_set(name):
+    """Delete one question set by name."""
     path = _set_path(name)
     if not os.path.isfile(path):
         return jsonify({'error': 'Question set not found.'}), 404

@@ -182,3 +182,9 @@ my-dataset/
     bob/
       my_question_set_20250101_143000.csv
 ```
+
+---
+
+## License
+
+This project is licensed under the **[MIT License](LICENSE)** file for details.
