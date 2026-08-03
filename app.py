@@ -17,11 +17,13 @@ app.register_blueprint(review_bp)
 
 @app.route('/')
 def index():
+    """Render the single-page application shell."""
     return render_template('index.html')
 
 
 @app.route('/api/scan', methods=['POST'])
 def scan():
+    """Scan a dataset folder and return valid image subfolders plus session info."""
     data = request.json or {}
     folder = data.get('folder', '').strip()
 
@@ -54,8 +56,11 @@ def scan():
         'session': session_info,
         'rating_session': rating_session_info,
     })
+
+
 @app.route('/api/browse', methods=['POST'])
 def browse_folder():
+    """Open a native folder picker and return the selected path."""
     # Try tkinter first (requires Tcl/Tk)
     try:
         import tkinter as tk

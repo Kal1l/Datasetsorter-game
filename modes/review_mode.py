@@ -1,4 +1,3 @@
-import json
 import csv
 import os
 
@@ -18,6 +17,7 @@ _state: dict = {
 
 
 def _is_within(path: str, base: str) -> bool:
+    """Return True when path resolves inside base (inclusive)."""
     try:
         resolved = os.path.normpath(os.path.abspath(path))
         resolved_base = os.path.normpath(os.path.abspath(base))
@@ -28,6 +28,7 @@ def _is_within(path: str, base: str) -> bool:
 
 @review_bp.route('/api/review/scan', methods=['POST'])
 def scan():
+    """Scan evaluations directory and list evaluators with CSV counts."""
     data = request.json or {}
     folder = data.get('folder', '').strip()
     if not folder or not os.path.isdir(folder):
@@ -54,6 +55,7 @@ def scan():
 
 @review_bp.route('/api/review/load', methods=['POST'])
 def load():
+    """Load selected evaluator CSV data into in-memory review state."""
     data = request.json or {}
     folder = data.get('folder', '').strip()
     selected = data.get('evaluators', [])
@@ -83,11 +85,12 @@ def load():
                 try:
                     with open(fpath, 'r', newline='', encoding='utf-8') as f:
                         for r in csv.DictReader(f):
-                            meta = {'image', 'evaluator', 'question_set', 'timestamp'}
+                            meta = {'image', 'evaluator', 'question_set', 'timestamp'}  # keys to exclude from answers
                             answers = {}
                             for key, val in r.items():
                                 if key not in meta:
                                     try:
+                                        # Keep numeric answers as ints for easier charting/comparison.
                                         answers[key] = int(val)
                                     except (ValueError, TypeError):
                                         answers[key] = val
@@ -122,6 +125,7 @@ def load():
 
 @review_bp.route('/api/review/image/<int:idx>')
 def get_image(idx):
+    """Serve one reviewed image by index."""
     images = _state.get('images', [])
     if idx < 0 or idx >= len(images):
         return jsonify({'error': 'Index out of range.'}), 404
@@ -139,6 +143,7 @@ def get_image(idx):
 
 @review_bp.route('/api/review/entry/<int:idx>')
 def get_entry(idx):
+    """Return enriched review data for one image index."""
     images = _state.get('images', [])
     if idx < 0 or idx >= len(images):
         return jsonify({'error': 'Index out of range.'}), 404
@@ -152,6 +157,7 @@ def get_entry(idx):
         entry   = dict(eval_data)
         qs_name = entry.get('question_set', '')
         if qs_name and 'questions' not in entry:
+            # Attach question schema to help the client label response keys consistently.
             qs = load_question_set(qs_name)
             if qs:
                 entry['questions'] = qs.get('questions', [])

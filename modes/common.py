@@ -6,6 +6,7 @@ IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '
 
 
 def _is_within_base(path, base_folder):
+    """Return True when path resolves inside base_folder."""
     try:
         resolved_path = Path(path).resolve()
         resolved_base = Path(base_folder).resolve()
@@ -15,6 +16,7 @@ def _is_within_base(path, base_folder):
 
 
 def selected_images(folder, selected_paths=None):
+    """Collect images from selected subpaths or from the full folder."""
     if selected_paths:
         images = []
         for path in selected_paths:
@@ -25,6 +27,7 @@ def selected_images(folder, selected_paths=None):
 
 
 def collect_images(folder):
+    """Recursively collect image files while skipping output folders."""
     images = []
     skip_dirs = {'good', 'bad'}
     for root, dirs, files in os.walk(folder):
@@ -36,6 +39,7 @@ def collect_images(folder):
 
 
 def count_images(folder):
+    """Count images recursively while skipping output folders."""
     total = 0
     skip_dirs = {'good', 'bad'}
     for root, dirs, files in os.walk(folder):
@@ -46,7 +50,7 @@ def count_images(folder):
     return total
 
 def load_metadata_for_image(img_abs_path: str) -> dict:
-    """Return prompt, technique, and scenario from metadata.json."""
+    """Load prompt/technique/scenario metadata for a specific image."""
     folder    = os.path.dirname(img_abs_path)
     meta_path = os.path.join(folder, 'metadata.json')
     result    = {'prompt': '', 'technique': '', 'scenario': ''}
@@ -67,4 +71,5 @@ def load_metadata_for_image(img_abs_path: str) -> dict:
     return result
 
 def load_prompt_for_image(img_abs_path: str) -> str:
+    """Return only the prompt field from image metadata."""
     return load_metadata_for_image(img_abs_path)['prompt']
